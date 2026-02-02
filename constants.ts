@@ -102,6 +102,14 @@ export const TRADE_RATES = {
     stone: { buy: 100, sell: 40 } 
 };
 
+// Dynamic Trade Pricing Thresholds
+export const TRADE_PRICE_THRESHOLDS = {
+  food: 100, // Weekly food production for 1.0x price modifier
+  wood: 100, // Weekly wood production for 1.0x price modifier
+  stone: 50  // Weekly stone production for 1.0x price modifier
+};
+export const TRADE_PRICE_BASE_MODIFIER = 1.5; // Base for calculating price modifiers
+
 // Building Maintenance Costs (per week)
 export const BUILDING_MAINTENANCE = {
   houses: { wood: 0.5, gold: 0.2 },

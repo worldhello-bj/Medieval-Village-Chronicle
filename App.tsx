@@ -6,7 +6,8 @@ import {
   CONSUMPTION, GUARD_COVERAGE_BASE, GUARD_COVERAGE_UPGRADED, TECH_TREE, 
   FARMER_WEEKLY_BASE, WINTER_WOOD_CONSUMPTION, WALL_GUARD_BONUS,
   WEEKS_PER_YEAR, SEASON_BOUNDS, MAX_YEARS, GAME_END_TICK, DIFFICULTY_SETTINGS,
-  TRADE_RATES, TRADE_AMOUNT, BUILDING_MAINTENANCE, MAX_GAME_FOOD
+  TRADE_RATES, TRADE_AMOUNT, BUILDING_MAINTENANCE, MAX_GAME_FOOD,
+  TRADE_PRICE_THRESHOLDS, TRADE_PRICE_BASE_MODIFIER
 } from './constants';
 import { generateInitialPopulation, generateVillager } from './utils/gameHelper';
 import { generateAIEventsBatch, getFixedEvents, getMilitaryEventTemplates, generateEndingSummary, determineEndingType } from './services/geminiService';
@@ -938,16 +939,16 @@ function gameReducer(state: GameState, action: Action): GameState {
 
       // --- Dynamic Trade Pricing Based on Production Capacity ---
       // Calculate price modifiers based on village's production capacity
-      // Higher production = lower prices (more supply), Lower production = higher prices (less supply)
+      // Production above threshold = lower prices (surplus), below threshold = higher prices (scarcity)
       const baseFoodProduction = activeFarmers * FARMER_WEEKLY_BASE * foodMultiplier;
       const baseWoodProduction = state.population.filter(p => p.job === Job.Lumberjack).length * JOB_INCOME.lumberjack.wood;
       const baseStoneProduction = state.population.filter(p => p.job === Job.Miner).length * JOB_INCOME.miner.stone;
       
-      // Calculate modifiers: 0.5 (half price) to 2.0 (double price)
-      // Low production (< 20/week) = high prices, High production (> 100/week) = low prices
-      const foodPriceModifier = round2(Math.max(0.5, Math.min(2.0, 1.5 - (baseFoodProduction / 100))));
-      const woodPriceModifier = round2(Math.max(0.5, Math.min(2.0, 1.5 - (baseWoodProduction / 100))));
-      const stonePriceModifier = round2(Math.max(0.5, Math.min(2.0, 1.5 - (baseStoneProduction / 50))));
+      // Calculate modifiers: 0.5x (high production) to 2.0x (low production)
+      // At threshold production, modifier = 1.0x (base price)
+      const foodPriceModifier = round2(Math.max(0.5, Math.min(2.0, TRADE_PRICE_BASE_MODIFIER - (baseFoodProduction / TRADE_PRICE_THRESHOLDS.food))));
+      const woodPriceModifier = round2(Math.max(0.5, Math.min(2.0, TRADE_PRICE_BASE_MODIFIER - (baseWoodProduction / TRADE_PRICE_THRESHOLDS.wood))));
+      const stonePriceModifier = round2(Math.max(0.5, Math.min(2.0, TRADE_PRICE_BASE_MODIFIER - (baseStoneProduction / TRADE_PRICE_THRESHOLDS.stone))));
 
       return {
         ...state,
