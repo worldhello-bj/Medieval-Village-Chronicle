@@ -8,7 +8,9 @@ import {
   GiCoins, 
   GiThreeFriends,
   GiScrollQuill,
-  GiShield
+  GiShield,
+  GiHearts,
+  GiFactory
 } from 'react-icons/gi';
 import { HOUSE_CAPACITY_BASE, HOUSE_CAPACITY_UPGRADED, GUARD_COVERAGE_BASE, GUARD_COVERAGE_UPGRADED, WALL_GUARD_BONUS } from '../constants';
 
@@ -48,6 +50,14 @@ export const ResourceDisplay: React.FC<ResourceDisplayProps> = ({ state }) => {
   // If pop is 0, security is 100%
   const securityPercent = totalPop === 0 ? 100 : Math.min(100, Math.floor((guardCount * guardCoverage / totalPop) * 100));
 
+  // Calculate average happiness
+  const avgHappiness = totalPop > 0 
+    ? Math.floor(state.population.reduce((acc, v) => acc + v.happiness, 0) / totalPop) 
+    : 0;
+  
+  // Calculate productivity multiplier from average happiness (10%-200% range)
+  const productivityPercent = Math.floor(10 + (avgHappiness / 100) * 190);
+
   return (
     <div className="flex flex-wrap gap-2 md:gap-4 w-full justify-start">
       <ResourceItem 
@@ -68,6 +78,19 @@ export const ResourceDisplay: React.FC<ResourceDisplayProps> = ({ state }) => {
         label="治安" 
         color={isSecure ? "text-emerald-400" : "text-red-500"} 
         subLabel={!isSecure ? "危险" : "安全"}
+      />
+      <ResourceItem 
+        icon={<GiHearts />} 
+        value={avgHappiness} 
+        label="幸福度" 
+        color={avgHappiness >= 70 ? "text-pink-400" : avgHappiness >= 40 ? "text-yellow-400" : "text-red-400"} 
+      />
+      <ResourceItem 
+        icon={<GiFactory />} 
+        value={`${productivityPercent}%`} 
+        label="产能" 
+        color={productivityPercent >= 100 ? "text-green-400" : productivityPercent >= 50 ? "text-yellow-400" : "text-red-400"} 
+        subLabel="效率"
       />
     </div>
   );

@@ -43,6 +43,7 @@ export interface Villager {
   age: number;
   job: Job;
   happiness: number; // 0-100
+  happinessBaseline: number; // 0-100, natural regression target (default 50, increased by wonders)
   health: number; // 0-100
   hunger: number; // 0-100 (100 is starving)
   energy: number; // 0-100 (Abstracted daily energy/stamina)

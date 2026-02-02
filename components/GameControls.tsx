@@ -93,10 +93,11 @@ export const GameControls: React.FC<GameControlsProps> = ({ state, onAssignJob, 
                   <button onClick={() => setShowHelp(false)} className="text-stone-400">✕</button>
               </div>
               <ul className="space-y-3 text-stone-300 list-disc pl-4">
+                  <li><strong className="text-stone-100">幸福度系统：</strong> 幸福度影响产能效率（10%-200%）。幸福度会自然回归到基准值（默认50），只有<span className="text-yellow-300">奇观建筑</span>（大教堂）可提升基准值。</li>
                   <li><strong className="text-stone-100">冬季生存：</strong> <span className="text-blue-300">冬季</span>每天每人消耗1单位木材。如果没有木材，村民会冻死。</li>
                   <li><strong className="text-stone-100">石料紧缺：</strong> 石料现在非常稀缺。请通过<span className="text-stone-400">集市</span>购买或积攒。</li>
                   <li><strong className="text-stone-100">集市交易：</strong> 建造集市后可以买卖资源。</li>
-                  <li><strong className="text-stone-100">大教堂：</strong> 终极建筑，消耗大量石料，但能极大提升幸福度。</li>
+                  <li><strong className="text-stone-100">大教堂：</strong> 终极建筑，消耗大量石料，能提升幸福度基准值，使村民长期保持高幸福度。</li>
               </ul>
           </div>
       )}
@@ -223,7 +224,7 @@ export const GameControls: React.FC<GameControlsProps> = ({ state, onAssignJob, 
                       <div className="font-bold text-purple-300 flex items-center gap-2"><GiHolySymbol /> 大教堂</div>
                       <span className="text-xs text-stone-400">拥有: {state.buildings.cathedrals}</span>
                   </div>
-                  <div className="text-xs text-stone-400 mb-2">宏伟的奇观。大幅提升幸福度。</div>
+                  <div className="text-xs text-stone-400 mb-2">宏伟的奇观。提升幸福度基准值+5，使村民长期保持高幸福度。</div>
                   <div className="text-xs text-amber-500 mb-3">石: {BUILDING_COSTS.Cathedral.stone} | 金: {BUILDING_COSTS.Cathedral.gold}</div>
                   <button 
                     onClick={() => onConstruct('Cathedral')}

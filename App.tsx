@@ -365,6 +365,12 @@ function gameReducer(state: GameState, action: Action): GameState {
               if (v.health < 50) efficiency -= 0.3;
               if (v.health < 20) efficiency -= 0.2; // Total -0.5 if dying
 
+              // Happiness-based Productivity Multiplier (Maps 0-100 happiness to 10%-200% productivity)
+              // Formula: productivity = 0.1 + (happiness / 100) * 1.9
+              // happiness=0 → 10%, happiness=50 → 105%, happiness=100 → 200%
+              const happinessProductivity = round2(0.1 + (v.happiness / 100) * 1.9);
+              efficiency = round2(efficiency * happinessProductivity);
+
               // Minimum efficiency floor so production doesn't hit absolute zero unless dead
               efficiency = round2(Math.max(0.1, efficiency)); 
 
@@ -488,11 +494,23 @@ function gameReducer(state: GameState, action: Action): GameState {
             newV.hunger = 0;
             const healRate = state.technologies.includes('medicine_1') ? 5 : 2; // Higher heal rate per tick
             const tavernBonus = state.buildings.taverns > 0 ? 2 : 0;
-            const cathedralBonus = state.buildings.cathedrals > 0 ? (state.buildings.cathedrals * 1) : 0; 
+            // Cathedral now increases baseline happiness instead of direct bonus
+            const cathedralBaselineBonus = state.buildings.cathedrals > 0 ? (state.buildings.cathedrals * 5) : 0;
+            newV.happinessBaseline = 50 + cathedralBaselineBonus; // Base 50 + cathedral bonus
             
             if (!isFreezing) {
                 newV.health = Math.min(100, newV.health + healRate);
-                if (newV.hunger === 0) newV.happiness = Math.min(100, newV.happiness + 2 + tavernBonus + cathedralBonus);
+                if (newV.hunger === 0) {
+                  // Natural happiness regression towards baseline
+                  const regressionRate = 1; // How fast happiness moves towards baseline per week
+                  if (newV.happiness < newV.happinessBaseline) {
+                    newV.happiness = Math.min(100, newV.happiness + 2 + tavernBonus + regressionRate);
+                  } else if (newV.happiness > newV.happinessBaseline) {
+                    newV.happiness = Math.max(0, newV.happiness - regressionRate);
+                  }
+                  // Ensure happiness doesn't exceed 100
+                  newV.happiness = Math.min(100, newV.happiness);
+                }
             }
         }
         return newV;
