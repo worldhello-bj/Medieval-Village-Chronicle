@@ -53,6 +53,70 @@ const SEVERE_NEGATIVE_EVENTS: EventTemplate[] = [
   { message: "土匪洗劫了村庄。", type: 'danger', deltaFood: -60, deltaWood: -30, deltaGold: -50, deltaPop: -1 },
 ];
 
+// Invasion and raid events - require sufficient guards to defend
+export interface MilitaryEventTemplate extends EventTemplate {
+  requiredGuards?: (totalPop: number) => number; // Function to calculate required guards
+  successMessage?: string; // Message when defended successfully
+  failureMessage?: string; // Message when defense fails
+  successDeltas?: { deltaFood: number; deltaWood: number; deltaGold: number; deltaPop: number };
+  failureDeltas?: { deltaFood: number; deltaWood: number; deltaGold: number; deltaPop: number };
+}
+
+const INVASION_RAID_EVENTS: MilitaryEventTemplate[] = [
+  {
+    message: "小股土匪试图袭击村庄！",
+    type: 'warning',
+    deltaFood: 0,
+    deltaWood: 0,
+    deltaGold: 0,
+    deltaPop: 0,
+    requiredGuards: (totalPop) => Math.max(2, Math.ceil(totalPop * 0.1)),
+    successMessage: "守卫成功击退了土匪的袭击！",
+    failureMessage: "土匪洗劫了村庄，造成严重损失！",
+    successDeltas: { deltaFood: 0, deltaWood: 0, deltaGold: 10, deltaPop: 0 },
+    failureDeltas: { deltaFood: -80, deltaWood: -40, deltaGold: -60, deltaPop: -2 }
+  },
+  {
+    message: "一队流寇正在接近村庄！",
+    type: 'warning',
+    deltaFood: 0,
+    deltaWood: 0,
+    deltaGold: 0,
+    deltaPop: 0,
+    requiredGuards: (totalPop) => Math.max(3, Math.ceil(totalPop * 0.15)),
+    successMessage: "守卫英勇作战，流寇落荒而逃！",
+    failureMessage: "流寇攻破防线，村庄遭受重创！",
+    successDeltas: { deltaFood: 0, deltaWood: 0, deltaGold: 15, deltaPop: 0 },
+    failureDeltas: { deltaFood: -100, deltaWood: -60, deltaGold: -80, deltaPop: -3 }
+  },
+  {
+    message: "敌对势力发起了小规模入侵！",
+    type: 'danger',
+    deltaFood: 0,
+    deltaWood: 0,
+    deltaGold: 0,
+    deltaPop: 0,
+    requiredGuards: (totalPop) => Math.max(4, Math.ceil(totalPop * 0.2)),
+    successMessage: "村庄守卫英勇击退了入侵者，缴获了战利品！",
+    failureMessage: "入侵者攻陷村庄，造成惨重损失！",
+    successDeltas: { deltaFood: 20, deltaWood: 10, deltaGold: 30, deltaPop: 0 },
+    failureDeltas: { deltaFood: -120, deltaWood: -80, deltaGold: -100, deltaPop: -5 }
+  },
+  {
+    message: "大规模劫掠队伍兵临城下！",
+    type: 'danger',
+    deltaFood: 0,
+    deltaWood: 0,
+    deltaGold: 0,
+    deltaPop: 0,
+    requiredGuards: (totalPop) => Math.max(5, Math.ceil(totalPop * 0.25)),
+    successMessage: "在守卫的顽强抵抗下，劫掠者被击退！村民士气大振！",
+    failureMessage: "劫掠者摧毁了村庄的防御，村民四散逃亡！",
+    successDeltas: { deltaFood: 30, deltaWood: 20, deltaGold: 50, deltaPop: 0 },
+    failureDeltas: { deltaFood: -150, deltaWood: -100, deltaGold: -120, deltaPop: -8 }
+  }
+];
+
 // Happiness-based fixed events
 const HAPPINESS_EVENTS: EventTemplate[] = [
   { message: "村民因高幸福度而工作效率大增！", type: 'success', deltaFood: 0, deltaWood: 0, deltaGold: 0, deltaPop: 0 },
@@ -111,6 +175,11 @@ export const getFixedEvents = (state: GameState): GameEvent[] => {
   }
   
   return events;
+};
+
+// Get military events for invasion/raid - returns the raw templates
+export const getMilitaryEventTemplates = (): MilitaryEventTemplate[] => {
+  return INVASION_RAID_EVENTS;
 };
 
 // Generate multiple AI events at once (for initial pool and replenishment)
@@ -297,4 +366,196 @@ export const generateVillagerBio = async (name: string, age: number, job: string
     console.warn('Backend API error, using fallback templates:', error.message);
     return generateBioFallback(name, job);
   }
+};
+
+// Generate AI-powered ending summary
+export const generateEndingSummary = async (state: GameState, endingType: string, endingReason?: string): Promise<string> => {
+  try {
+    // Send only essential data to avoid payload size issues
+    const essentialState = {
+      tick: state.tick,
+      difficulty: state.difficulty,
+      population: state.population ? state.population.length : 0,
+      resources: state.resources,
+      buildings: state.buildings,
+      technologies: state.technologies,
+      stats: state.stats
+    };
+    
+    const response = await fetch(`${API_BASE_URL}/api/generate-ending`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ state: essentialState, endingType, endingReason }),
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      console.log('AI Ending summary generated via backend API');
+      return data.summary;
+    }
+
+    // Fallback to generic message
+    console.warn('Backend API unavailable for ending generation');
+    return generateEndingFallback(state, endingType, endingReason);
+
+  } catch (error: any) {
+    console.warn('Backend API error for ending generation:', error.message);
+    return generateEndingFallback(state, endingType, endingReason);
+  }
+};
+
+// Ending type determination based on game state
+export const determineEndingType = (state: GameState, baseEndingType: string): string => {
+  // Only apply special endings for victory scenarios
+  if (baseEndingType !== '胜利' && baseEndingType !== 'victory') {
+    return baseEndingType;
+  }
+
+  const yearsPlayed = Math.floor(state.tick / 52);
+  const finalPop = state.population?.length || 0;
+  const avgHappiness = finalPop > 0 ? state.population.reduce((acc, v) => acc + v.happiness, 0) / finalPop : 0;
+  
+  const totalBuildings = Object.values(state.buildings).reduce((sum, count) => sum + count, 0);
+  const allTechsUnlocked = state.technologies.length >= 8; // Total techs in game
+  const hasUniversities = state.buildings.universities > 0;
+  const hasLibraries = state.buildings.libraries >= 2;
+  const hasCathedrals = state.buildings.cathedrals > 0;
+  const hasTemples = state.buildings.temples >= 2;
+  const manyInvasionsRepelled = (state.stats.invasionsRepelled || 0) >= 5;
+  const richResources = state.resources.gold > 500 && state.resources.food > 1000;
+  const veryLowDeaths = (state.stats.totalDeaths || 0) < 5;
+  const manyFestivals = (state.stats.festivalsHeld || 0) >= 8;
+  const survivedStarvation = (state.stats.starvationDays || 0) > 30;
+  const minimalistWin = finalPop < 25 && yearsPlayed === 10;
+  const isHardMode = state.difficulty === 'Hard';
+  
+  // Hidden/Secret Endings (highest priority, most specific)
+  
+  // 完美统治 (Perfect Rule) - All conditions excellent
+  if (finalPop > 60 && avgHappiness > 80 && allTechsUnlocked && 
+      manyInvasionsRepelled && richResources && totalBuildings > 30 &&
+      veryLowDeaths) {
+    return '完美统治';
+  }
+  
+  // 钢铁意志 (Iron Will) - Survived severe hardship
+  if (survivedStarvation && yearsPlayed === 10 && finalPop > 20) {
+    return '钢铁意志';
+  }
+  
+  // 速通大师 (Speedrun Master) - Minimal population victory
+  if (minimalistWin && (state.stats.totalDeaths || 0) < 10) {
+    return '速通大师';
+  }
+  
+  // 苦难求生 (Survival Against Odds) - Hard mode with minimal resources
+  if (isHardMode && yearsPlayed === 10 && (state.stats.totalDeaths || 0) > 30) {
+    return '苦难求生';
+  }
+  
+  // Special Achievement Endings
+  
+  // 繁荣盛世 (Prosperous Era) - High population and happiness
+  if (finalPop > 70 && avgHappiness > 75 && totalBuildings > 25) {
+    return '繁荣盛世';
+  }
+  
+  // 知识帝国 (Knowledge Empire) - All technologies and knowledge buildings
+  if (allTechsUnlocked && hasUniversities && hasLibraries && state.resources.knowledge > 500) {
+    return '知识帝国';
+  }
+  
+  // 军事霸权 (Military Hegemony) - Military dominance
+  if (manyInvasionsRepelled && state.buildings.walls > 3 && state.buildings.watchtowers > 3) {
+    return '军事霸权';
+  }
+  
+  // 和平天堂 (Peaceful Paradise) - Very low deaths and high happiness
+  if (veryLowDeaths && avgHappiness > 85 && finalPop > 40) {
+    return '和平天堂';
+  }
+  
+  // 经济奇迹 (Economic Miracle) - Massive wealth
+  if (richResources && state.resources.stone > 300 && totalBuildings > 20) {
+    return '经济奇迹';
+  }
+  
+  // 文化巨人 (Cultural Giant) - Cultural buildings and festivals
+  if (manyFestivals && hasCathedrals && hasTemples && state.buildings.taverns >= 2) {
+    return '文化巨人';
+  }
+  
+  // Default victory
+  return '胜利';
+};
+
+// Fallback ending summary generator
+const generateEndingFallback = (state: GameState, endingType: string, endingReason?: string): string => {
+  const yearsPlayed = Math.floor(state.tick / 52);
+  const finalPop = state.population?.length || 0;
+  
+  // Destruction endings
+  if (endingType === '灭亡') {
+    if (endingReason === '军事不足') {
+      return `在第${yearsPlayed}年，村庄因防御力量薄弱而被入侵者摧毁。${state.stats?.peakPopulation || 0}位村民曾在这里生活，但最终无人幸存。这是一个关于准备不足的悲惨故事。`;
+    } else if (endingReason === '人口灭绝') {
+      return `经过${yearsPlayed}年的挣扎，村庄最终因饥荒、疾病和绝望而消亡。曾经有${state.stats?.peakPopulation || 0}人在此安居，如今只剩空荡荡的废墟。`;
+    }
+    return `村庄在第${yearsPlayed}年走向终结。${state.stats?.totalDeaths || 0}人逝去，这片土地将被遗忘。`;
+  }
+  
+  // Hidden/Secret Ending summaries
+  if (endingType === '完美统治') {
+    return `【隐藏结局】经过${yearsPlayed}年的完美治理，村庄成为了传说中的理想国度！${finalPop}位村民在繁荣、知识与和平中生活，这个奇迹将被永世传颂。你达成了几乎不可能的完美统治！`;
+  }
+  
+  if (endingType === '钢铁意志') {
+    return `【隐藏结局】历经${state.stats?.starvationDays || 0}天的饥荒和无数磨难，村庄依然坚持了${yearsPlayed}年！${finalPop}位村民用钢铁般的意志证明：真正的力量来自永不放弃的决心。`;
+  }
+  
+  if (endingType === '速通大师') {
+    return `【隐藏结局】你用最精简的策略，仅用${finalPop}人就完成了${yearsPlayed}年的统治！这是效率与智慧的完美体现，真正的速通大师诞生了！`;
+  }
+  
+  if (endingType === '苦难求生') {
+    return `【隐藏结局】在最困难的条件下，经历${state.stats?.totalDeaths || 0}人的牺牲，村庄奇迹般地坚持了${yearsPlayed}年。这是一个关于坚韧与牺牲的传奇故事！`;
+  }
+  
+  // Special Achievement Ending summaries
+  if (endingType === '繁荣盛世') {
+    return `【特殊结局】${yearsPlayed}年的发展让村庄成为繁荣的典范！${finalPop}位幸福的村民、宏伟的建筑群，这里已成为周边最富庶的地方。繁荣盛世，名不虚传！`;
+  }
+  
+  if (endingType === '知识帝国') {
+    return `【特殊结局】通过对知识的不懈追求，村庄成为了学术圣地！${state.technologies.length}项科技成就、${state.resources.knowledge}点知识积累，这里是智慧与启蒙的中心。`;
+  }
+  
+  if (endingType === '军事霸权') {
+    return `【特殊结局】击退${state.stats?.invasionsRepelled || 0}次入侵，村庄的军事力量令四方敬畏！坚固的城墙和精锐的守卫让这里成为不可战胜的要塞。`;
+  }
+  
+  if (endingType === '和平天堂') {
+    return `【特殊结局】${yearsPlayed}年来几乎零伤亡，村庄成为了和平与幸福的象征！${finalPop}位村民在这个人间天堂中安居乐业，笑声回荡在每个角落。`;
+  }
+  
+  if (endingType === '经济奇迹') {
+    return `【特殊结局】黄金${state.resources.gold}、食物${state.resources.food}，村庄创造了惊人的经济奇迹！富裕让这里成为商人向往的繁华之地。`;
+  }
+  
+  if (endingType === '文化巨人') {
+    return `【特殊结局】${state.stats?.festivalsHeld || 0}次盛大庆典、宏伟的神庙与教堂，村庄的文化影响力远播四方！这里是精神与艺术的殿堂。`;
+  }
+  
+  // Default endings
+  if (endingType === '胜利') {
+    return `经过${yearsPlayed}年的艰苦奋斗，村庄繁荣昌盛！${finalPop}位村民享受着和平与富足，击退了${state.stats?.invasionsRepelled || 0}次入侵。这是一个传奇般的成功故事。`;
+  }
+  
+  if (endingType === '生存') {
+    return `${yearsPlayed}年过去了，村庄艰难地生存了下来。${finalPop}位村民仍在坚持，虽然条件艰苦，但希望犹在。`;
+  }
+  
+  return `村庄的故事在第${yearsPlayed}年结束，留下了${finalPop}位幸存者和无数回忆。`;
 };

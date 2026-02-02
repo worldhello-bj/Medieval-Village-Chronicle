@@ -9,7 +9,7 @@ import {
   TRADE_RATES, TRADE_AMOUNT
 } from './constants';
 import { generateInitialPopulation, generateVillager } from './utils/gameHelper';
-import { generateAIEventsBatch, getFixedEvents } from './services/geminiService';
+import { generateAIEventsBatch, getFixedEvents, getMilitaryEventTemplates, generateEndingSummary, determineEndingType } from './services/geminiService';
 import { round2 } from './utils/mathUtils';
 import { GameEvent } from './types';
 import { ResourceDisplay } from './components/ResourceDisplay';
@@ -39,6 +39,7 @@ type Action =
   | { type: 'RESEARCH_TECH'; techId: string }
   | { type: 'TRADE_RESOURCE'; resource: 'food' | 'wood' | 'stone'; action: 'buy' | 'sell' }
   | { type: 'SET_FOOD_PRIORITY'; priority: FoodPriority }
+  | { type: 'UPDATE_ENDING_SUMMARY'; summary: string }
   | { type: 'RESTART_GAME' };
 
 const initialStats = {
@@ -48,7 +49,9 @@ const initialStats = {
   totalFoodProduced: 0,
   totalGoldMined: 0,
   festivalsHeld: 0,
-  starvationDays: 0
+  starvationDays: 0,
+  invasionsRepelled: 0,
+  raidsSurvived: 0
 };
 
 const initialState: GameState = {
@@ -329,12 +332,26 @@ function gameReducer(state: GameState, action: Action): GameState {
       return { ...state, foodPriority: action.priority };
     }
 
+    case 'UPDATE_ENDING_SUMMARY': {
+      return { ...state, endingSummary: action.summary };
+    }
+
     case 'TICK': {
       if (state.paused || state.status !== GameStatus.Playing) return state;
 
       // Check Game End
       if (state.tick >= GAME_END_TICK) {
-          return { ...state, status: GameStatus.Finished, paused: true };
+          // Determine the specific ending type based on achievements
+          const baseEndingType = '胜利';
+          const specificEndingType = determineEndingType(state, baseEndingType);
+          
+          return { 
+            ...state, 
+            status: GameStatus.Finished, 
+            paused: true,
+            endingType: specificEndingType,
+            endingSummary: `经过${MAX_YEARS}年的艰苦奋斗，村庄终于迎来了和平与繁荣！${state.population.length}位村民享受着他们用汗水和智慧换来的美好生活。这是一段值得永远铭记的传奇！`
+          };
       }
 
       const settings = DIFFICULTY_SETTINGS[state.difficulty];
@@ -444,6 +461,91 @@ function gameReducer(state: GameState, action: Action): GameState {
                   newLogs.push({ id: Math.random().toString(), tick: state.tick, message: `治安恶化！被盗 ${theftFood} 食物, ${theftGold} 黄金`, type: 'warning' });
               }
           }
+      }
+
+      // --- Invasion/Raid Events (Military Challenge) ---
+      // Trigger invasion/raid events periodically, especially for larger populations
+      let invasionLosses = { food: 0, wood: 0, gold: 0, pop: 0 };
+      let invasionBonuses = { food: 0, wood: 0, gold: 0 }; // Separate bonuses from production
+      let newInvasionsRepelled = 0;
+      let newRaidsSurvived = 0;
+      
+      if (totalPop > 5 && state.tick % 15 === 0) { // Every 15 weeks (~3.5 months)
+        const militaryTemplates = getMilitaryEventTemplates();
+        
+        // Select event based on population size (larger pop = bigger threats)
+        let selectedEvent = null;
+        if (totalPop < 15) {
+          selectedEvent = militaryTemplates[0]; // Small bandit raid
+        } else if (totalPop < 30) {
+          selectedEvent = militaryTemplates[Math.floor(Math.random() * 2)]; // Small raid or brigands
+        } else if (totalPop < 50) {
+          selectedEvent = militaryTemplates[Math.floor(Math.random() * 3)]; // Up to small invasion
+        } else {
+          selectedEvent = militaryTemplates[Math.floor(Math.random() * militaryTemplates.length)]; // Any event
+        }
+        
+        if (selectedEvent && selectedEvent.requiredGuards) {
+          const requiredDefenders = selectedEvent.requiredGuards(totalPop);
+          const canDefend = guards >= requiredDefenders;
+          
+          if (canDefend && selectedEvent.successMessage && selectedEvent.successDeltas) {
+            // Successfully defended
+            newLogs.push({ 
+              id: Math.random().toString(), 
+              tick: state.tick, 
+              message: `${selectedEvent.message} ${selectedEvent.successMessage}`, 
+              type: 'success' 
+            });
+            invasionBonuses.food += selectedEvent.successDeltas.deltaFood;
+            invasionBonuses.wood += selectedEvent.successDeltas.deltaWood;
+            invasionBonuses.gold += selectedEvent.successDeltas.deltaGold;
+            newInvasionsRepelled = 1;
+          } else if (!canDefend && selectedEvent.failureMessage && selectedEvent.failureDeltas) {
+            // Failed to defend - check if this causes total destruction
+            const wouldSurvive = totalPop + selectedEvent.failureDeltas.deltaPop > 0;
+            
+            if (!wouldSurvive || guards === 0) {
+              // Catastrophic military failure - trigger destruction ending
+              const endingType = '灭亡';
+              const endingReason = '军事不足';
+              
+              return {
+                ...state,
+                status: GameStatus.Finished,
+                population: [],
+                endingType,
+                endingReason,
+                endingSummary: '村庄因军事防御力量严重不足而被入侵者彻底摧毁。所有村民或战死或逃散，曾经繁华的村庄化为废墟。',
+                logs: [...newLogs, { 
+                  id: 'end', 
+                  tick: state.tick, 
+                  message: `${selectedEvent.message} ${selectedEvent.failureMessage} 村庄覆灭了。`, 
+                  type: 'danger' 
+                }],
+                stats: {
+                  ...state.stats,
+                  totalDeaths: state.stats.totalDeaths + totalPop
+                }
+              };
+            } else {
+              // Severe losses but village survives
+              newLogs.push({ 
+                id: Math.random().toString(), 
+                tick: state.tick, 
+                message: `${selectedEvent.message} ${selectedEvent.failureMessage}`, 
+                type: 'danger' 
+              });
+              invasionLosses = {
+                food: selectedEvent.failureDeltas.deltaFood,
+                wood: selectedEvent.failureDeltas.deltaWood,
+                gold: selectedEvent.failureDeltas.deltaGold,
+                pop: selectedEvent.failureDeltas.deltaPop
+              };
+              newRaidsSurvived = 1;
+            }
+          }
+        }
       }
 
       // --- Consumption & Winter Heating ---
@@ -620,10 +722,28 @@ function gameReducer(state: GameState, action: Action): GameState {
             const healRate = state.technologies.includes('medicine_1') ? 5 : 2; // Higher heal rate per tick
             const tavernBonus = state.buildings.taverns > 0 ? 2 : 0;
             const templeBonus = state.buildings.temples > 0 ? state.buildings.temples * 1 : 0;
-            // Cathedral and Temple now increase baseline happiness instead of direct bonus
-            const cathedralBaselineBonus = state.buildings.cathedrals > 0 ? (state.buildings.cathedrals * 5) : 0;
-            const templeBaselineBonus = state.buildings.temples > 0 ? (state.buildings.temples * 2) : 0;
-            newV.happinessBaseline = 50 + cathedralBaselineBonus + templeBaselineBonus; // Base 50 + building bonuses
+            
+            // Cathedral and Temple now increase baseline happiness with caps to prevent it from being too powerful
+            // Cathedrals: First gives +5, second gives +3, third+ gives +1 each (max realistic: +12 for 5 cathedrals)
+            const cathedralCount = state.buildings.cathedrals;
+            let cathedralBaselineBonus = 0;
+            if (cathedralCount > 0) {
+              cathedralBaselineBonus = 5; // First cathedral
+              if (cathedralCount > 1) cathedralBaselineBonus += 3; // Second cathedral
+              if (cathedralCount > 2) cathedralBaselineBonus += Math.min(cathedralCount - 2, 4); // Remaining (capped at +4)
+            }
+            
+            // Temples: +2 for first, +1 for each additional (max realistic: +7 for 6 temples)
+            const templeCount = state.buildings.temples;
+            let templeBaselineBonus = 0;
+            if (templeCount > 0) {
+              templeBaselineBonus = 2; // First temple
+              if (templeCount > 1) templeBaselineBonus += Math.min(templeCount - 1, 5); // Additional temples (capped at +5)
+            }
+            
+            // Cap total baseline bonus at +20 to preserve balance
+            const totalBaselineBonus = Math.min(20, cathedralBaselineBonus + templeBaselineBonus);
+            newV.happinessBaseline = 50 + totalBaselineBonus; // Base 50 + capped building bonuses
             
             if (!isFreezing) {
                 newV.health = Math.min(100, newV.health + healRate);
@@ -677,6 +797,13 @@ function gameReducer(state: GameState, action: Action): GameState {
           else deathCount++;
       });
 
+      // Apply invasion/raid casualties
+      if (invasionLosses.pop < 0) {
+        const casualtyCount = Math.min(Math.abs(invasionLosses.pop), survivors.length);
+        const casualtiesRemoved = survivors.splice(-casualtyCount, casualtyCount); // Remove from end (random victims)
+        deathCount += casualtiesRemoved.length;
+      }
+
       if (deathCount > 0) newLogs.push({ id: Math.random().toString(), tick: state.tick, message: `${deathCount} 人死亡`, type: 'danger' });
       if (newBabies.length > 0) {
           survivors.push(...newBabies);
@@ -696,14 +823,22 @@ function gameReducer(state: GameState, action: Action): GameState {
           peakPopulation: Math.max(state.stats.peakPopulation, survivors.length),
           totalFoodProduced: round2(state.stats.totalFoodProduced + producedFood),
           totalGoldMined: round2(state.stats.totalGoldMined + producedGold),
-          starvationDays: isAnyoneStarving ? state.stats.starvationDays + 1 : state.stats.starvationDays
+          starvationDays: isAnyoneStarving ? state.stats.starvationDays + 1 : state.stats.starvationDays,
+          invasionsRepelled: state.stats.invasionsRepelled + newInvasionsRepelled,
+          raidsSurvived: state.stats.raidsSurvived + newRaidsSurvived
       };
 
       if (survivors.length === 0) {
+           const endingType = '灭亡';
+           const endingReason = '人口灭绝';
+           
            return {
                ...state,
                status: GameStatus.Finished,
                population: [],
+               endingType,
+               endingReason,
+               endingSummary: '经过长期的饥荒、疾病和苦难，村庄的最后一位居民也离开了人世。曾经生机勃勃的村庄如今只剩下空荡荡的房屋和无尽的沉默。',
                logs: [...newLogs, { id: 'end', tick: state.tick, message: '村庄覆灭了。', type: 'danger' }],
                stats: newStats
            };
@@ -714,10 +849,10 @@ function gameReducer(state: GameState, action: Action): GameState {
         tick: state.tick + 1,
         season: currentSeason,
         resources: {
-          food: round2(finalFood),
-          wood: round2(Math.max(0, state.resources.wood + producedWood - consumedWood)),
+          food: round2(Math.max(0, finalFood + invasionLosses.food + invasionBonuses.food)),
+          wood: round2(Math.max(0, state.resources.wood + producedWood - consumedWood + invasionLosses.wood + invasionBonuses.wood)),
           stone: round2(state.resources.stone + producedStone),
-          gold: round2(Math.max(0, state.resources.gold + producedGold - theftGold)),
+          gold: round2(Math.max(0, state.resources.gold + producedGold - theftGold + invasionLosses.gold + invasionBonuses.gold)),
           knowledge: round2(state.resources.knowledge + producedKnowledge)
         },
         population: survivors,
@@ -791,6 +926,23 @@ const EndScreen: React.FC<{ state: GameState, onRestart: () => void }> = ({ stat
             <div className="max-w-3xl w-full bg-[#2a2620] border-4 border-[#5c5040] rounded-lg p-8 shadow-2xl">
                 <div className="text-center mb-8">
                     <h2 className="text-4xl medieval-font text-amber-100 mb-2">编年史终章</h2>
+                    {state.endingType && (
+                        <div className={`text-2xl font-bold mb-3 ${
+                            state.endingType.includes('隐藏') || ['完美统治', '钢铁意志', '速通大师', '苦难求生'].includes(state.endingType) ? 'text-purple-400 animate-pulse' :
+                            ['繁荣盛世', '知识帝国', '军事霸权', '和平天堂', '经济奇迹', '文化巨人'].includes(state.endingType) ? 'text-yellow-400' :
+                            state.endingType === '胜利' ? 'text-green-400' : 
+                            state.endingType === '灭亡' ? 'text-red-400' : 'text-yellow-400'
+                        }`}>
+                            {['完美统治', '钢铁意志', '速通大师', '苦难求生'].includes(state.endingType) && '✨ '}
+                            {state.endingType}
+                            {['完美统治', '钢铁意志', '速通大师', '苦难求生'].includes(state.endingType) && ' ✨'}
+                        </div>
+                    )}
+                    {state.endingSummary && (
+                        <p className="text-stone-300 italic mb-4 leading-relaxed">
+                            {state.endingSummary}
+                        </p>
+                    )}
                     <p className="text-stone-400">
                         {state.tick >= GAME_END_TICK ? '你成功带领村庄走过了整整十年。' : `村庄在第 ${livedYears + 1} 年覆灭了。`}
                     </p>
@@ -828,11 +980,44 @@ const EndScreen: React.FC<{ state: GameState, onRestart: () => void }> = ({ stat
                         <span><GiTrophyCup className="inline mr-2 text-blue-400"/>解锁科技</span>
                         <span className="font-bold">{technologies.length} / {TECH_TREE.length}</span>
                     </div>
-                     <div className="bg-stone-900/50 p-4 rounded flex justify-between">
+                    <div className="bg-stone-900/50 p-4 rounded flex justify-between">
                         <span>难度</span>
                         <span className="font-bold">{DIFFICULTY_SETTINGS[difficulty].name}</span>
                     </div>
+                    {(stats.invasionsRepelled > 0 || stats.raidsSurvived > 0) && (
+                        <>
+                            <div className="bg-stone-900/50 p-4 rounded flex justify-between">
+                                <span className="text-green-400">⚔️ 击退入侵</span>
+                                <span className="font-bold">{stats.invasionsRepelled}</span>
+                            </div>
+                            <div className="bg-stone-900/50 p-4 rounded flex justify-between">
+                                <span className="text-orange-400">🛡️ 幸存劫掠</span>
+                                <span className="font-bold">{stats.raidsSurvived}</span>
+                            </div>
+                        </>
+                    )}
                 </div>
+
+                {/* Special/Hidden Ending Achievement Display */}
+                {state.endingType && ['完美统治', '钢铁意志', '速通大师', '苦难求生', '繁荣盛世', '知识帝国', '军事霸权', '和平天堂', '经济奇迹', '文化巨人'].includes(state.endingType) && (
+                    <div className="mb-6 p-4 bg-gradient-to-r from-purple-900/30 to-amber-900/30 border-2 border-amber-600/50 rounded-lg">
+                        <div className="text-center text-amber-400 font-bold mb-2">
+                            {['完美统治', '钢铁意志', '速通大师', '苦难求生'].includes(state.endingType) ? '🏆 隐藏结局达成！' : '⭐ 特殊结局达成！'}
+                        </div>
+                        <div className="text-sm text-stone-300 text-center">
+                            {state.endingType === '完美统治' && '全方位的完美表现：高人口、高幸福、全科技、强军事、丰富资源'}
+                            {state.endingType === '钢铁意志' && `经历${stats.starvationDays}天饥荒仍坚持到最后`}
+                            {state.endingType === '速通大师' && '用最少的人口完成10年统治'}
+                            {state.endingType === '苦难求生' && '在困难模式下克服重重困难'}
+                            {state.endingType === '繁荣盛世' && `${population.length}人口、高幸福度、大量建筑`}
+                            {state.endingType === '知识帝国' && `${technologies.length}项科技、${resources.knowledge}知识点`}
+                            {state.endingType === '军事霸权' && `击退${stats.invasionsRepelled}次入侵、强大防御`}
+                            {state.endingType === '和平天堂' && `仅${stats.totalDeaths}人死亡、极高幸福度`}
+                            {state.endingType === '经济奇迹' && `黄金${resources.gold}、食物${resources.food}`}
+                            {state.endingType === '文化巨人' && `${stats.festivalsHeld}次庆典、多座文化建筑`}
+                        </div>
+                    </div>
+                )}
 
                 <button 
                     onClick={onRestart}
@@ -917,6 +1102,20 @@ export default function App() {
       }
     }
   }, [state.tick, state.paused, state.status, state.eventPool]);
+
+  // Generate AI ending summary when game finishes
+  useEffect(() => {
+    if (state.status === GameStatus.Finished && state.endingType && !state.endingSummary?.includes('AI generated')) {
+      // Use endingReason from state instead of fragile string matching
+      generateEndingSummary(state, state.endingType, state.endingReason).then(summary => {
+        if (summary && summary !== state.endingSummary) {
+          dispatch({ type: 'UPDATE_ENDING_SUMMARY', summary });
+        }
+      }).catch(error => {
+        console.warn('Failed to generate AI ending summary:', error);
+      });
+    }
+  }, [state.status, state.endingType]);
 
   const handleAssignJob = (job: Job, amount: number) => {
     dispatch({ type: 'ASSIGN_JOB', job, amount });
