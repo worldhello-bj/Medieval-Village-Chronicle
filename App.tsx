@@ -720,10 +720,28 @@ function gameReducer(state: GameState, action: Action): GameState {
             const healRate = state.technologies.includes('medicine_1') ? 5 : 2; // Higher heal rate per tick
             const tavernBonus = state.buildings.taverns > 0 ? 2 : 0;
             const templeBonus = state.buildings.temples > 0 ? state.buildings.temples * 1 : 0;
-            // Cathedral and Temple now increase baseline happiness instead of direct bonus
-            const cathedralBaselineBonus = state.buildings.cathedrals > 0 ? (state.buildings.cathedrals * 5) : 0;
-            const templeBaselineBonus = state.buildings.temples > 0 ? (state.buildings.temples * 2) : 0;
-            newV.happinessBaseline = 50 + cathedralBaselineBonus + templeBaselineBonus; // Base 50 + building bonuses
+            
+            // Cathedral and Temple now increase baseline happiness with caps to prevent it from being too powerful
+            // Cathedrals: First gives +5, second gives +3, third+ gives +1 each (max realistic: +12 for 5 cathedrals)
+            const cathedralCount = state.buildings.cathedrals;
+            let cathedralBaselineBonus = 0;
+            if (cathedralCount > 0) {
+              cathedralBaselineBonus = 5; // First cathedral
+              if (cathedralCount > 1) cathedralBaselineBonus += 3; // Second cathedral
+              if (cathedralCount > 2) cathedralBaselineBonus += Math.min(cathedralCount - 2, 4); // Remaining (capped at +4)
+            }
+            
+            // Temples: +2 for first, +1 for each additional (max realistic: +7 for 6 temples)
+            const templeCount = state.buildings.temples;
+            let templeBaselineBonus = 0;
+            if (templeCount > 0) {
+              templeBaselineBonus = 2; // First temple
+              if (templeCount > 1) templeBaselineBonus += Math.min(templeCount - 1, 5); // Additional temples (capped at +5)
+            }
+            
+            // Cap total baseline bonus at +20 to preserve balance
+            const totalBaselineBonus = Math.min(20, cathedralBaselineBonus + templeBaselineBonus);
+            newV.happinessBaseline = 50 + totalBaselineBonus; // Base 50 + capped building bonuses
             
             if (!isFreezing) {
                 newV.health = Math.min(100, newV.health + healRate);
