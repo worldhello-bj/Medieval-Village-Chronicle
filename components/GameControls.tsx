@@ -432,19 +432,19 @@ export const GameControls: React.FC<GameControlsProps> = ({ state, onAssignJob, 
                 <div className="grid grid-cols-2 gap-2">
                     <button 
                         onClick={() => onTrade('food', 'buy')}
-                        disabled={state.resources.gold < TRADE_RATES.food.buy}
+                        disabled={state.resources.gold < Math.ceil(TRADE_RATES.food.buy * (state.tradePriceModifiers?.food || 1))}
                         className="py-2 bg-emerald-900/50 hover:bg-emerald-800 disabled:opacity-30 text-white rounded text-xs flex flex-col items-center"
                     >
-                        <span>买入</span>
-                        <span className="text-yellow-300 font-mono">-{TRADE_RATES.food.buy} 金</span>
+                        <span>买入 {TRADE_AMOUNT}</span>
+                        <span className="text-yellow-300 font-mono">-{Math.ceil(TRADE_RATES.food.buy * (state.tradePriceModifiers?.food || 1))} 金</span>
                     </button>
                     <button 
                         onClick={() => onTrade('food', 'sell')}
                         disabled={state.resources.food < TRADE_AMOUNT}
                         className="py-2 bg-red-900/50 hover:bg-red-800 disabled:opacity-30 text-white rounded text-xs flex flex-col items-center"
                     >
-                         <span>卖出</span>
-                         <span className="text-yellow-300 font-mono">+{TRADE_RATES.food.sell} 金</span>
+                         <span>卖出 {TRADE_AMOUNT}</span>
+                         <span className="text-yellow-300 font-mono">+{Math.floor(TRADE_RATES.food.sell * (state.tradePriceModifiers?.food || 1))} 金</span>
                     </button>
                 </div>
             </div>
@@ -457,19 +457,19 @@ export const GameControls: React.FC<GameControlsProps> = ({ state, onAssignJob, 
                 <div className="grid grid-cols-2 gap-2">
                     <button 
                         onClick={() => onTrade('wood', 'buy')}
-                        disabled={state.resources.gold < TRADE_RATES.wood.buy}
+                        disabled={state.resources.gold < Math.ceil(TRADE_RATES.wood.buy * (state.tradePriceModifiers?.wood || 1))}
                         className="py-2 bg-emerald-900/50 hover:bg-emerald-800 disabled:opacity-30 text-white rounded text-xs flex flex-col items-center"
                     >
-                        <span>买入</span>
-                        <span className="text-yellow-300 font-mono">-{TRADE_RATES.wood.buy} 金</span>
+                        <span>买入 {TRADE_AMOUNT}</span>
+                        <span className="text-yellow-300 font-mono">-{Math.ceil(TRADE_RATES.wood.buy * (state.tradePriceModifiers?.wood || 1))} 金</span>
                     </button>
                     <button 
                         onClick={() => onTrade('wood', 'sell')}
                         disabled={state.resources.wood < TRADE_AMOUNT}
                         className="py-2 bg-red-900/50 hover:bg-red-800 disabled:opacity-30 text-white rounded text-xs flex flex-col items-center"
                     >
-                         <span>卖出</span>
-                         <span className="text-yellow-300 font-mono">+{TRADE_RATES.wood.sell} 金</span>
+                         <span>卖出 {TRADE_AMOUNT}</span>
+                         <span className="text-yellow-300 font-mono">+{Math.floor(TRADE_RATES.wood.sell * (state.tradePriceModifiers?.wood || 1))} 金</span>
                     </button>
                 </div>
             </div>
@@ -482,19 +482,19 @@ export const GameControls: React.FC<GameControlsProps> = ({ state, onAssignJob, 
                 <div className="grid grid-cols-2 gap-2">
                     <button 
                         onClick={() => onTrade('stone', 'buy')}
-                        disabled={state.resources.gold < TRADE_RATES.stone.buy}
+                        disabled={state.resources.gold < Math.ceil(TRADE_RATES.stone.buy * (state.tradePriceModifiers?.stone || 1))}
                         className="py-2 bg-emerald-900/50 hover:bg-emerald-800 disabled:opacity-30 text-white rounded text-xs flex flex-col items-center"
                     >
-                        <span>买入</span>
-                        <span className="text-yellow-300 font-mono">-{TRADE_RATES.stone.buy} 金</span>
+                        <span>买入 {TRADE_AMOUNT}</span>
+                        <span className="text-yellow-300 font-mono">-{Math.ceil(TRADE_RATES.stone.buy * (state.tradePriceModifiers?.stone || 1))} 金</span>
                     </button>
                     <button 
                         onClick={() => onTrade('stone', 'sell')}
                         disabled={state.resources.stone < TRADE_AMOUNT}
                         className="py-2 bg-red-900/50 hover:bg-red-800 disabled:opacity-30 text-white rounded text-xs flex flex-col items-center"
                     >
-                         <span>卖出</span>
-                         <span className="text-yellow-300 font-mono">+{TRADE_RATES.stone.sell} 金</span>
+                         <span>卖出 {TRADE_AMOUNT}</span>
+                         <span className="text-yellow-300 font-mono">+{Math.floor(TRADE_RATES.stone.sell * (state.tradePriceModifiers?.stone || 1))} 金</span>
                     </button>
                 </div>
             </div>

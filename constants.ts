@@ -95,11 +95,11 @@ export const BUILDING_COSTS = {
 };
 
 // Trade Rates (Resource amount per transaction)
-export const TRADE_AMOUNT = 10;
+export const TRADE_AMOUNT = 50; // Increased from 10 for more useful trading
 export const TRADE_RATES = {
-    food: { buy: 5, sell: 2 }, 
-    wood: { buy: 10, sell: 4 },
-    stone: { buy: 25, sell: 10 } 
+    food: { buy: 20, sell: 8 },  // Increased proportionally with TRADE_AMOUNT
+    wood: { buy: 40, sell: 16 },
+    stone: { buy: 100, sell: 40 } 
 };
 
 // Building Maintenance Costs (per week)

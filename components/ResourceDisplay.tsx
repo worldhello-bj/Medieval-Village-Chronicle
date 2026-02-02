@@ -109,10 +109,10 @@ export const ResourceDisplay: React.FC<ResourceDisplayProps> = ({ state }) => {
         <ResourceItem icon={<GiScrollQuill />} value={Math.floor(state.resources.knowledge)} label="知识" color="text-blue-400" />
         <ResourceItem 
           icon={<GiShield />} 
-          value={`${securityPercent}%`} 
+          value={`${guardCount}/${requiredGuards}`}
           label="治安" 
           color={isSecure ? "text-emerald-400" : "text-red-500"} 
-          subLabel={!isSecure ? "危险" : "安全"}
+          subLabel={`${securityPercent}%`}
         />
         <ResourceItem 
           icon={<GiHearts />} 

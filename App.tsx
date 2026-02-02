@@ -69,7 +69,8 @@ const initialState: GameState = {
   history: [],
   stats: initialStats,
   eventPool: [], // Initialize empty event pool
-  foodPriority: FoodPriority.Equal // Default to equal distribution
+  foodPriority: FoodPriority.Equal, // Default to equal distribution
+  tradePriceModifiers: { food: 1.0, wood: 1.0, stone: 1.0 } // Base multipliers for dynamic pricing
 };
 
 function gameReducer(state: GameState, action: Action): GameState {
@@ -298,18 +299,23 @@ function gameReducer(state: GameState, action: Action): GameState {
         if (state.buildings.markets < 1) return state;
         const { resource, action: tradeAction } = action;
         const rates = TRADE_RATES[resource];
+        const priceModifier = state.tradePriceModifiers?.[resource] || 1.0;
         const newResources = { ...state.resources };
         
         if (tradeAction === 'buy') {
-            if (newResources.gold >= rates.buy) {
-                newResources.gold -= rates.buy;
+            // Higher price when buying (base price * modifier)
+            const buyPrice = Math.ceil(rates.buy * priceModifier);
+            if (newResources.gold >= buyPrice) {
+                newResources.gold -= buyPrice;
                 newResources[resource] += TRADE_AMOUNT;
                 return { ...state, resources: newResources };
             }
         } else if (tradeAction === 'sell') {
+            // Lower price when selling (base price * modifier)
+            const sellPrice = Math.floor(rates.sell * priceModifier);
             if (newResources[resource] >= TRADE_AMOUNT) {
                 newResources[resource] -= TRADE_AMOUNT;
-                newResources.gold += rates.sell;
+                newResources.gold += sellPrice;
                 return { ...state, resources: newResources };
             }
         }
@@ -930,6 +936,19 @@ function gameReducer(state: GameState, action: Action): GameState {
         });
       }
 
+      // --- Dynamic Trade Pricing Based on Production Capacity ---
+      // Calculate price modifiers based on village's production capacity
+      // Higher production = lower prices (more supply), Lower production = higher prices (less supply)
+      const baseFoodProduction = activeFarmers * FARMER_WEEKLY_BASE * foodMultiplier;
+      const baseWoodProduction = state.population.filter(p => p.job === Job.Lumberjack).length * JOB_INCOME.lumberjack.wood;
+      const baseStoneProduction = state.population.filter(p => p.job === Job.Miner).length * JOB_INCOME.miner.stone;
+      
+      // Calculate modifiers: 0.5 (half price) to 2.0 (double price)
+      // Low production (< 20/week) = high prices, High production (> 100/week) = low prices
+      const foodPriceModifier = round2(Math.max(0.5, Math.min(2.0, 1.5 - (baseFoodProduction / 100))));
+      const woodPriceModifier = round2(Math.max(0.5, Math.min(2.0, 1.5 - (baseWoodProduction / 100))));
+      const stonePriceModifier = round2(Math.max(0.5, Math.min(2.0, 1.5 - (baseStoneProduction / 50))));
+
       return {
         ...state,
         tick: state.tick + 1,
@@ -946,7 +965,8 @@ function gameReducer(state: GameState, action: Action): GameState {
         logs: newLogs,
         buildings: state.buildings, 
         history: newHistory,
-        stats: newStats
+        stats: newStats,
+        tradePriceModifiers: { food: foodPriceModifier, wood: woodPriceModifier, stone: stonePriceModifier }
       };
     }
     default:
