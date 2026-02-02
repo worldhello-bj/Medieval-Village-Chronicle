@@ -24,6 +24,8 @@ export const GameControls: React.FC<GameControlsProps> = ({ state, onAssignJob, 
   const jobs = Object.values(Job).filter(j => j !== Job.Unemployed && j !== Job.Child);
 
   // Debounced job assignment to prevent double-clicks
+  // Note: lastClickTime is a ref and is intentionally not in the dependency array
+  // because refs don't need to be - they're stable across renders
   const handleJobAssignment = useCallback((job: Job, amount: number) => {
     const now = Date.now();
     // Prevent clicks within 100ms of each other
