@@ -115,6 +115,42 @@ export const generateGameEvent = async (state: GameState) => {
   }
 };
 
+// Happiness-based fixed events (these occur independently and can happen alongside AI events)
+const HAPPINESS_EVENTS: EventTemplate[] = [
+  { message: "村民因高幸福度而工作效率大增！", type: 'success', deltaFood: 0, deltaWood: 0, deltaGold: 0, deltaPop: 0 },
+  { message: "幸福的村民自发举办了庆祝活动。", type: 'success', deltaFood: -10, deltaWood: 0, deltaGold: 5, deltaPop: 0 },
+  { message: "低落的士气影响了村庄的生产。", type: 'warning', deltaFood: 0, deltaWood: 0, deltaGold: 0, deltaPop: 0 },
+  { message: "村民因不满而抱怨连连。", type: 'warning', deltaFood: -20, deltaWood: 0, deltaGold: 0, deltaPop: 0 },
+  { message: "极度不满的村民开始考虑离开。", type: 'danger', deltaFood: 0, deltaWood: 0, deltaGold: 0, deltaPop: -1 },
+];
+
+// Generate a happiness-based fixed event (independent of AI events)
+export const generateHappinessEvent = (state: GameState): EventTemplate | null => {
+  try {
+    const avgHappiness = state.population.reduce((acc, v) => acc + v.happiness, 0) / state.population.length || 0;
+    
+    // High happiness events (>80)
+    if (avgHappiness > 80 && Math.random() < 0.3) {
+      return HAPPINESS_EVENTS[Math.random() < 0.5 ? 0 : 1];
+    }
+    
+    // Medium-low happiness events (40-60)
+    if (avgHappiness >= 40 && avgHappiness <= 60 && Math.random() < 0.2) {
+      return HAPPINESS_EVENTS[2];
+    }
+    
+    // Low happiness events (<40)
+    if (avgHappiness < 40 && Math.random() < 0.3) {
+      return HAPPINESS_EVENTS[Math.random() < 0.5 ? 3 : 4];
+    }
+    
+    return null;
+  } catch (error) {
+    console.error("Happiness event gen error:", error);
+    return null;
+  }
+};
+
 // Bio templates for different job types
 const BIO_TEMPLATES = {
   '农夫': [

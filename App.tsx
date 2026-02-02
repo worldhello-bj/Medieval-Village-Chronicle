@@ -9,7 +9,8 @@ import {
   TRADE_RATES, TRADE_AMOUNT
 } from './constants';
 import { generateInitialPopulation, generateVillager } from './utils/gameHelper';
-import { generateGameEvent } from './services/geminiService';
+import { generateGameEvent, generateHappinessEvent } from './services/geminiService';
+import { round2 } from './utils/mathUtils';
 import { ResourceDisplay } from './components/ResourceDisplay';
 import { VillagerList } from './components/VillagerList';
 import { GameControls } from './components/GameControls';
@@ -207,14 +208,18 @@ function gameReducer(state: GameState, action: Action): GameState {
     case 'AI_EVENT': {
       const { message, type, deltaFood, deltaWood, deltaGold, deltaPop } = action.payload;
       
+      // Calculate average happiness for impact modifier
+      const avgHappiness = state.population.reduce((acc, v) => acc + v.happiness, 0) / state.population.length || 0;
+      const happinessMultiplier = round2(1 + (avgHappiness - 50) / 200); // Range: 0.75 to 1.25
+      
       // Difficulty modifier for AI events (Bad events are worse on Hard)
       const diffSettings = DIFFICULTY_SETTINGS[state.difficulty];
       let finalDeltaFood = deltaFood;
       let finalDeltaGold = deltaGold;
       
       if (state.difficulty === Difficulty.Hard && (deltaFood < 0 || deltaGold < 0)) {
-          finalDeltaFood = Math.floor(deltaFood * 1.5);
-          finalDeltaGold = Math.floor(deltaGold * 1.5);
+          finalDeltaFood = round2(deltaFood * 1.5);
+          finalDeltaGold = round2(deltaGold * 1.5);
       }
 
       // Guard mitigation logic
@@ -223,23 +228,45 @@ function gameReducer(state: GameState, action: Action): GameState {
       const baseCoverage = hasArchery ? GUARD_COVERAGE_UPGRADED : GUARD_COVERAGE_BASE;
       const wallBonus = state.buildings.walls * WALL_GUARD_BONUS;
       const guardCoverage = baseCoverage + wallBonus;
-      const securityRatio = Math.min(1, (guardCount * guardCoverage) / Math.max(1, state.population.length));
+      const securityRatio = round2(Math.min(1, (guardCount * guardCoverage) / Math.max(1, state.population.length)));
       
       let modMessage = message;
+      let happinessImpactNote = "";
+      
+      // Apply happiness modifier to positive events (amplify good, reduce bad)
+      if (deltaFood > 0 || deltaGold > 0) {
+        finalDeltaFood = round2(finalDeltaFood * happinessMultiplier);
+        finalDeltaGold = round2(finalDeltaGold * happinessMultiplier);
+        if (happinessMultiplier > 1.1) {
+          happinessImpactNote = " (高幸福度提升了收益)";
+        }
+      } else if (deltaFood < 0 || deltaGold < 0) {
+        // High happiness reduces negative impact
+        finalDeltaFood = round2(finalDeltaFood / happinessMultiplier);
+        finalDeltaGold = round2(finalDeltaGold / happinessMultiplier);
+        if (happinessMultiplier > 1.1) {
+          happinessImpactNote = " (高幸福度减轻了损失)";
+        } else if (happinessMultiplier < 0.9) {
+          happinessImpactNote = " (低幸福度加重了损失)";
+        }
+      }
+      
       if (securityRatio > 0.5) {
-          if (finalDeltaFood < 0) finalDeltaFood = Math.floor(finalDeltaFood * (1 - securityRatio * 0.5)); 
-          if (finalDeltaGold < 0) finalDeltaGold = Math.floor(finalDeltaGold * (1 - securityRatio * 0.8)); 
+          if (finalDeltaFood < 0) finalDeltaFood = round2(finalDeltaFood * (1 - securityRatio * 0.5)); 
+          if (finalDeltaGold < 0) finalDeltaGold = round2(finalDeltaGold * (1 - securityRatio * 0.8)); 
           if ((finalDeltaFood !== deltaFood || finalDeltaGold !== deltaGold)) {
                modMessage += " (守卫减少了损失)";
           }
       }
+      
+      modMessage += happinessImpactNote;
 
       const newResources = {
-        food: Math.max(0, state.resources.food + finalDeltaFood),
-        wood: Math.max(0, state.resources.wood + deltaWood), // Wood usually not stolen
-        stone: state.resources.stone,
-        gold: Math.max(0, state.resources.gold + finalDeltaGold),
-        knowledge: state.resources.knowledge
+        food: round2(Math.max(0, state.resources.food + finalDeltaFood)),
+        wood: round2(Math.max(0, state.resources.wood + deltaWood)), // Wood usually not stolen
+        stone: round2(state.resources.stone),
+        gold: round2(Math.max(0, state.resources.gold + finalDeltaGold)),
+        knowledge: round2(state.resources.knowledge)
       };
       
       let newPop = [...state.population];
@@ -313,31 +340,31 @@ function gameReducer(state: GameState, action: Action): GameState {
               if (v.health < 20) efficiency -= 0.2; // Total -0.5 if dying
 
               // Minimum efficiency floor so production doesn't hit absolute zero unless dead
-              efficiency = Math.max(0.1, efficiency); 
+              efficiency = round2(Math.max(0.1, efficiency)); 
 
               if (v.job === Job.Farmer) {
-                  activeFarmers += efficiency; // Fractional farmer
+                  activeFarmers = round2(activeFarmers + efficiency); // Fractional farmer
               }
 
-              let woodMult = 1.0 * settings.productionMultiplier;
-              if (state.technologies.includes('tools_1')) woodMult += 0.2;
-              if (state.technologies.includes('forestry_1')) woodMult += 0.2;
-              producedWood += income.wood * woodMult * efficiency;
+              let woodMult = round2(1.0 * settings.productionMultiplier);
+              if (state.technologies.includes('tools_1')) woodMult = round2(woodMult + 0.2);
+              if (state.technologies.includes('forestry_1')) woodMult = round2(woodMult + 0.2);
+              producedWood = round2(producedWood + income.wood * woodMult * efficiency);
 
-              let stoneGoldMult = 1.0 * settings.productionMultiplier;
-              if (state.technologies.includes('tools_1')) stoneGoldMult += 0.2;
-              producedStone += income.stone * stoneGoldMult * efficiency;
-              producedGold += income.gold * stoneGoldMult * efficiency;
+              let stoneGoldMult = round2(1.0 * settings.productionMultiplier);
+              if (state.technologies.includes('tools_1')) stoneGoldMult = round2(stoneGoldMult + 0.2);
+              producedStone = round2(producedStone + income.stone * stoneGoldMult * efficiency);
+              producedGold = round2(producedGold + income.gold * stoneGoldMult * efficiency);
 
-              const libraryBonus = state.buildings.libraries > 0 ? (state.buildings.libraries * 0.2 * 7) : 0; 
-              producedKnowledge += (income.knowledge * efficiency) + (v.job === Job.Scholar && state.technologies.includes('scribing_1') ? (7 * efficiency) : 0) + (v.job === Job.Scholar ? (libraryBonus * efficiency) : 0);
+              const libraryBonus = state.buildings.libraries > 0 ? round2(state.buildings.libraries * 0.2 * 7) : 0; 
+              producedKnowledge = round2(producedKnowledge + (income.knowledge * efficiency) + (v.job === Job.Scholar && state.technologies.includes('scribing_1') ? (7 * efficiency) : 0) + (v.job === Job.Scholar ? (libraryBonus * efficiency) : 0));
           }
       });
 
       // --- Harvest (Every Tick is a Week) ---
       const newLogs = [...state.logs];
-      const baseYield = activeFarmers * FARMER_WEEKLY_BASE;
-      const totalHarvest = Math.floor(baseYield * foodMultiplier);
+      const baseYield = round2(activeFarmers * FARMER_WEEKLY_BASE);
+      const totalHarvest = round2(baseYield * foodMultiplier);
       producedFood = totalHarvest;
       
       // --- Security ---
@@ -354,8 +381,8 @@ function gameReducer(state: GameState, action: Action): GameState {
 
       if (!isSecure && totalPop > 10) {
           if (Math.random() < 0.1) { 
-              theftFood = Math.floor(state.resources.food * 0.05 * settings.consumptionRate); 
-              theftGold = Math.floor(state.resources.gold * 0.05);
+              theftFood = round2(state.resources.food * 0.05 * settings.consumptionRate); 
+              theftGold = round2(state.resources.gold * 0.05);
               if (theftFood > 0 || theftGold > 0) {
                   newLogs.push({ id: Math.random().toString(), tick: state.tick, message: `治安恶化！被盗 ${theftFood} 食物, ${theftGold} 黄金`, type: 'warning' });
               }
@@ -382,15 +409,15 @@ function gameReducer(state: GameState, action: Action): GameState {
       let rawFoodConsumption = 0;
       state.population.forEach(v => {
         if (v.age < 16) {
-            rawFoodConsumption += CONSUMPTION.childFood;
+            rawFoodConsumption = round2(rawFoodConsumption + CONSUMPTION.childFood);
         } else {
-            rawFoodConsumption += CONSUMPTION.food;
+            rawFoodConsumption = round2(rawFoodConsumption + CONSUMPTION.food);
         }
       });
-      const totalConsumption = Math.ceil(rawFoodConsumption * settings.consumptionRate);
+      const totalConsumption = round2(rawFoodConsumption * settings.consumptionRate);
 
-      const netFood = state.resources.food + producedFood - totalConsumption - theftFood;
-      const finalFood = Math.max(0, netFood);
+      const netFood = round2(state.resources.food + producedFood - totalConsumption - theftFood);
+      const finalFood = round2(Math.max(0, netFood));
       const isStarving = netFood < 0;
 
       if (currentSeason !== state.season) {
@@ -480,15 +507,15 @@ function gameReducer(state: GameState, action: Action): GameState {
       }
 
       // --- Update History & Stats ---
-      const newHistory = [...state.history, { tick: state.tick, pop: survivors.length, food: Math.floor(finalFood) }].slice(-520); // Keep 10 years of weekly history
+      const newHistory = [...state.history, { tick: state.tick, pop: survivors.length, food: round2(finalFood) }].slice(-520); // Keep 10 years of weekly history
 
       const newStats = {
           ...state.stats,
           totalBirths: state.stats.totalBirths + newBabies.length,
           totalDeaths: state.stats.totalDeaths + deathCount,
           peakPopulation: Math.max(state.stats.peakPopulation, survivors.length),
-          totalFoodProduced: state.stats.totalFoodProduced + producedFood,
-          totalGoldMined: state.stats.totalGoldMined + producedGold,
+          totalFoodProduced: round2(state.stats.totalFoodProduced + producedFood),
+          totalGoldMined: round2(state.stats.totalGoldMined + producedGold),
           starvationDays: isStarving ? state.stats.starvationDays + 1 : state.stats.starvationDays
       };
 
@@ -507,11 +534,11 @@ function gameReducer(state: GameState, action: Action): GameState {
         tick: state.tick + 1,
         season: currentSeason,
         resources: {
-          food: finalFood,
-          wood: Math.max(0, state.resources.wood + producedWood - consumedWood),
-          stone: state.resources.stone + producedStone,
-          gold: Math.max(0, state.resources.gold + producedGold - theftGold),
-          knowledge: state.resources.knowledge + producedKnowledge
+          food: round2(finalFood),
+          wood: round2(Math.max(0, state.resources.wood + producedWood - consumedWood)),
+          stone: round2(state.resources.stone + producedStone),
+          gold: round2(Math.max(0, state.resources.gold + producedGold - theftGold)),
+          knowledge: round2(state.resources.knowledge + producedKnowledge)
         },
         population: survivors,
         logs: newLogs,
@@ -552,23 +579,23 @@ const StartScreen: React.FC<{ onStart: (diff: Difficulty) => void }> = ({ onStar
 const EndScreen: React.FC<{ state: GameState, onRestart: () => void }> = ({ state, onRestart }) => {
     // Score Calculation
     const { stats, resources, buildings, technologies, population, difficulty } = state;
-    const avgHappiness = population.length > 0 ? population.reduce((a, b) => a + b.happiness, 0) / population.length : 0;
+    const avgHappiness = population.length > 0 ? round2(population.reduce((a, b) => a + b.happiness, 0) / population.length) : 0;
     
     let score = 0;
-    score += population.length * 100;
-    score += avgHappiness * 50;
-    score += technologies.length * 500;
-    score += (buildings.houses + buildings.markets + buildings.walls + buildings.libraries + buildings.taverns + buildings.cathedrals) * 200;
-    score += resources.gold * 1;
-    score -= stats.totalDeaths * 50;
-    score -= stats.starvationDays * 10;
+    score = round2(score + population.length * 100);
+    score = round2(score + avgHappiness * 50);
+    score = round2(score + technologies.length * 500);
+    score = round2(score + (buildings.houses + buildings.markets + buildings.walls + buildings.libraries + buildings.taverns + buildings.cathedrals) * 200);
+    score = round2(score + resources.gold * 1);
+    score = round2(score - stats.totalDeaths * 50);
+    score = round2(score - stats.starvationDays * 10);
     
     // Difficulty Multiplier
     let diffMult = 1;
     if (difficulty === Difficulty.Easy) diffMult = 0.8;
     if (difficulty === Difficulty.Hard) diffMult = 1.5;
     
-    const finalScore = Math.floor(score * diffMult);
+    const finalScore = round2(score * diffMult);
     
     let rank = 'F';
     if (finalScore > 5000) rank = 'D';
@@ -651,7 +678,8 @@ export default function App() {
 
   useEffect(() => {
     if (state.paused || state.status !== GameStatus.Playing) return;
-    // Lower event frequency: check roughly once every 4-5 weeks (ticks)
+    
+    // Check for AI events roughly once every 4-5 weeks (ticks)
     if (state.tick > 4 && state.tick % 4 === 0) { 
       if (Math.random() > 0.6) {
         generateGameEvent(state).then(eventData => {
@@ -659,6 +687,14 @@ export default function App() {
                 dispatch({ type: 'AI_EVENT', payload: eventData });
             }
         });
+      }
+    }
+    
+    // Check for happiness-based fixed events independently (can occur alongside AI events)
+    if (state.tick > 2 && state.tick % 3 === 0) {
+      const happinessEvent = generateHappinessEvent(state);
+      if (happinessEvent) {
+        dispatch({ type: 'AI_EVENT', payload: happinessEvent });
       }
     }
   }, [state.tick, state.paused, state.status]);
