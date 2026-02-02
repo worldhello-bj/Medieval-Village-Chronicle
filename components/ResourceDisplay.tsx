@@ -56,8 +56,10 @@ export const ResourceDisplay: React.FC<ResourceDisplayProps> = ({ state }) => {
   const securityPercent = totalPop === 0 ? 100 : Math.min(100, Math.floor((guardCount * guardCoverage / totalPop) * 100));
 
   // Calculate next invasion info
-  const weeksUntilInvasion = totalPop > 5 ? (15 - (state.tick % 15)) : 0;
-  const showInvasionWarning = weeksUntilInvasion > 0 && weeksUntilInvasion <= 15;
+  // Invasions occur every 15 weeks when tick % 15 === 0
+  const ticksUntilInvasion = totalPop > 5 ? ((15 - (state.tick % 15)) % 15) : 0;
+  const weeksUntilInvasion = ticksUntilInvasion === 0 ? 15 : ticksUntilInvasion;
+  const showInvasionWarning = totalPop > 5 && weeksUntilInvasion > 0;
   
   // Calculate threat level based on population
   let threatLevel = '';
