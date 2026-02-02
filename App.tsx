@@ -476,7 +476,7 @@ function gameReducer(state: GameState, action: Action): GameState {
         // Stats (Apply weekly effects)
         if (isFreezing) {
             newV.health -= 5; // Harsher per tick since it's a week
-            newV.happiness -= 5;
+            newV.happiness = Math.max(0, newV.happiness - 5);
             newV.currentActivity = Activity.Freezing;
         } else if (newV.job === Job.Unemployed || newV.job === Job.Child) {
             newV.currentActivity = Activity.Idle;
@@ -488,7 +488,7 @@ function gameReducer(state: GameState, action: Action): GameState {
 
         if (isStarving) {
             newV.hunger = Math.min(100, newV.hunger + 20); // More hunger per tick
-            newV.happiness -= 10;
+            newV.happiness = Math.max(0, newV.happiness - 10);
             newV.health -= 5;
         } else {
             newV.hunger = 0;
