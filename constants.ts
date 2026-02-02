@@ -36,8 +36,8 @@ export const DIFFICULTY_SETTINGS = {
     name: '领主 (困难)',
     description: '严酷的寒冬，刁民难养，物资匮乏。',
     consumptionRate: 1.2,
-    productionMultiplier: 0.8,
-    startingResources: { food: 200, wood: 30, stone: 0, gold: 0, knowledge: 0 },
+    productionMultiplier: 0.9, // Increased from 0.8 to make game winnable
+    startingResources: { food: 300, wood: 50, stone: 0, gold: 0, knowledge: 0 }, // Increased food and wood
     startingPop: 15
   }
 };
