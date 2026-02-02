@@ -35,18 +35,23 @@ The backend API isolates AI API calls from the frontend, providing better securi
      ```
    - Get your API key from: https://ai.google.dev/
 
-3. Run the app (starts both frontend and backend):
+3. Start the backend server (in a separate terminal):
+   ```bash
+   npm run dev:backend
+   ```
+
+4. Run the frontend app:
    ```bash
    npm run dev
    ```
 
 The app will run at http://localhost:3000
 
-**Note**: If the backend API is not configured, the app will fall back to using predefined event and bio templates.
+**Note**: If the backend API is not configured or running, the app will fall back to using predefined event and bio templates.
 
 ### Running Components Separately
 
-- **Frontend only**: `npm run dev:frontend` (http://localhost:3000)
+- **Frontend only**: `npm run dev` (http://localhost:3000)
 - **Backend only**: `npm run server` (http://localhost:3001)
 
 ## Environment Variables
