@@ -37,6 +37,13 @@ export enum GameStatus {
   Finished = 'FINISHED'
 }
 
+export enum FoodPriority {
+  Equal = '平等分配',
+  ChildrenFirst = '儿童优先',
+  WorkersFirst = '工人优先',
+  ElderlyLast = '老人最后'
+}
+
 export interface Villager {
   id: string;
   name: string;
@@ -118,6 +125,7 @@ export interface GameState {
   history: { tick: number; pop: number; food: number }[];
   stats: GameStats;
   eventPool: GameEvent[]; // Pool of available events (mixed AI and fixed)
+  foodPriority: FoodPriority; // Food distribution priority setting
 }
 
 export interface LogEntry {

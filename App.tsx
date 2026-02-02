@@ -1,6 +1,6 @@
 
 import React, { useReducer, useEffect, useState, useCallback } from 'react';
-import { GameState, Job, Season, Villager, Activity, GameStatus, Difficulty } from './types';
+import { GameState, Job, Season, Villager, Activity, GameStatus, Difficulty, FoodPriority } from './types';
 import { 
   JOB_INCOME, BUILDING_COSTS, HOUSE_CAPACITY_BASE, HOUSE_CAPACITY_UPGRADED, 
   CONSUMPTION, GUARD_COVERAGE_BASE, GUARD_COVERAGE_UPGRADED, TECH_TREE, 
@@ -38,6 +38,7 @@ type Action =
   | { type: 'HOLD_FESTIVAL' }
   | { type: 'RESEARCH_TECH'; techId: string }
   | { type: 'TRADE_RESOURCE'; resource: 'food' | 'wood' | 'stone'; action: 'buy' | 'sell' }
+  | { type: 'SET_FOOD_PRIORITY'; priority: FoodPriority }
   | { type: 'RESTART_GAME' };
 
 const initialStats = {
@@ -64,7 +65,8 @@ const initialState: GameState = {
   gameSpeed: 500, // Slower tick speed because 1 tick is now 1 week (more impactful)
   history: [],
   stats: initialStats,
-  eventPool: [] // Initialize empty event pool
+  eventPool: [], // Initialize empty event pool
+  foodPriority: FoodPriority.Equal // Default to equal distribution
 };
 
 function gameReducer(state: GameState, action: Action): GameState {
@@ -323,6 +325,10 @@ function gameReducer(state: GameState, action: Action): GameState {
       return { ...state, population: newPop };
     }
 
+    case 'SET_FOOD_PRIORITY': {
+      return { ...state, foodPriority: action.priority };
+    }
+
     case 'TICK': {
       if (state.paused || state.status !== GameStatus.Playing) return state;
 
@@ -457,21 +463,104 @@ function gameReducer(state: GameState, action: Action): GameState {
       }
 
       // Calculate total food consumption with lower rate for children
-      let rawFoodConsumption = 0;
-      state.population.forEach(v => {
-        if (v.age < 16) {
-            rawFoodConsumption = round2(rawFoodConsumption + CONSUMPTION.childFood);
-        } else {
-            rawFoodConsumption = round2(rawFoodConsumption + CONSUMPTION.food);
-        }
-      });
       // Granary reduces food consumption by 5% per building
       const granaryReduction = state.buildings.granaries > 0 ? (1 - state.buildings.granaries * 0.05) : 1;
-      const totalConsumption = round2(rawFoodConsumption * settings.consumptionRate * granaryReduction);
+      
+      let rawFoodConsumption = 0;
+      const villagerFoodNeeds: { villager: Villager; need: number; priority: number }[] = [];
+      
+      state.population.forEach((v, index) => {
+        const foodNeed = v.age < 16 ? CONSUMPTION.childFood : CONSUMPTION.food;
+        const adjustedNeed = round2(foodNeed * settings.consumptionRate * granaryReduction);
+        rawFoodConsumption = round2(rawFoodConsumption + adjustedNeed);
+        
+        // Calculate priority based on food priority setting
+        let priority = 0;
+        switch (state.foodPriority) {
+          case FoodPriority.ChildrenFirst:
+            priority = v.age < 16 ? 2 : 1;
+            break;
+          case FoodPriority.WorkersFirst:
+            priority = (v.job !== Job.Unemployed && v.job !== Job.Child) ? 2 : 1;
+            break;
+          case FoodPriority.ElderlyLast:
+            priority = v.age >= 60 ? 0 : (v.age < 16 ? 2 : 1);
+            break;
+          case FoodPriority.Equal:
+          default:
+            priority = 1;
+            break;
+        }
+        
+        villagerFoodNeeds.push({ villager: v, need: adjustedNeed, priority });
+      });
+      
+      const totalConsumption = rawFoodConsumption;
 
-      const netFood = round2(state.resources.food + producedFood - totalConsumption - theftFood);
+      const availableFood = round2(state.resources.food + producedFood - theftFood);
+      const netFood = round2(availableFood - totalConsumption);
       const finalFood = round2(Math.max(0, netFood));
-      const isStarving = netFood < 0;
+      
+      // Calculate individual food allocation based on priority
+      const foodAllocation = new Map<string, number>(); // villager.id -> food received
+      
+      if (availableFood < totalConsumption) {
+        // Not enough food - distribute by priority
+        let remainingFood = availableFood;
+        
+        // Sort by priority (higher priority first)
+        const sortedNeeds = [...villagerFoodNeeds].sort((a, b) => b.priority - a.priority);
+        
+        // First pass: Give food to high priority villagers
+        const highPriority = sortedNeeds.filter(vn => vn.priority === 2);
+        const midPriority = sortedNeeds.filter(vn => vn.priority === 1);
+        const lowPriority = sortedNeeds.filter(vn => vn.priority === 0);
+        
+        // Allocate to high priority first
+        for (const vn of highPriority) {
+          if (remainingFood >= vn.need) {
+            foodAllocation.set(vn.villager.id, vn.need);
+            remainingFood = round2(remainingFood - vn.need);
+          } else {
+            foodAllocation.set(vn.villager.id, remainingFood);
+            remainingFood = 0;
+            break;
+          }
+        }
+        
+        // Then mid priority
+        if (remainingFood > 0) {
+          for (const vn of midPriority) {
+            if (remainingFood >= vn.need) {
+              foodAllocation.set(vn.villager.id, vn.need);
+              remainingFood = round2(remainingFood - vn.need);
+            } else {
+              foodAllocation.set(vn.villager.id, remainingFood);
+              remainingFood = 0;
+              break;
+            }
+          }
+        }
+        
+        // Finally low priority
+        if (remainingFood > 0) {
+          for (const vn of lowPriority) {
+            if (remainingFood >= vn.need) {
+              foodAllocation.set(vn.villager.id, vn.need);
+              remainingFood = round2(remainingFood - vn.need);
+            } else {
+              foodAllocation.set(vn.villager.id, remainingFood);
+              remainingFood = 0;
+              break;
+            }
+          }
+        }
+      } else {
+        // Enough food for everyone
+        villagerFoodNeeds.forEach(vn => {
+          foodAllocation.set(vn.villager.id, vn.need);
+        });
+      }
 
       if (currentSeason !== state.season) {
           newLogs.push({ id: Math.random().toString(), tick: state.tick, message: `季节更替：${currentSeason}`, type: 'info' });
@@ -507,12 +596,27 @@ function gameReducer(state: GameState, action: Action): GameState {
 
         if (!isSecure && totalPop > 10) newV.happiness = Math.max(0, newV.happiness - 1);
 
-        if (isStarving) {
-            newV.hunger = Math.min(100, newV.hunger + 20); // More hunger per tick
-            newV.happiness = Math.max(0, newV.happiness - 10);
-            newV.health -= 5;
+        // Calculate food shortage for this villager
+        const foodNeed = v.age < 16 ? CONSUMPTION.childFood : CONSUMPTION.food;
+        const adjustedNeed = round2(foodNeed * settings.consumptionRate * granaryReduction);
+        const foodReceived = foodAllocation.get(v.id) || 0;
+        const foodShortageRatio = round2(Math.max(0, 1 - (foodReceived / adjustedNeed)));
+        
+        if (foodShortageRatio > 0) {
+            // Proportional hunger increase based on shortage
+            const hungerIncrease = round2(foodShortageRatio * 20); // Max 20 if completely unfed
+            newV.hunger = Math.min(100, newV.hunger + hungerIncrease);
+            
+            // Proportional happiness and health penalties
+            const happinessPenalty = round2(foodShortageRatio * 10); // Max 10 if completely unfed
+            const healthPenalty = round2(foodShortageRatio * 5); // Max 5 if completely unfed
+            
+            newV.happiness = Math.max(0, newV.happiness - happinessPenalty);
+            newV.health = Math.max(0, newV.health - healthPenalty);
         } else {
-            newV.hunger = 0;
+            // Well fed - reduce hunger and allow healing/happiness recovery
+            newV.hunger = Math.max(0, newV.hunger - 10); // Recover from hunger when fed
+            
             const healRate = state.technologies.includes('medicine_1') ? 5 : 2; // Higher heal rate per tick
             const tavernBonus = state.buildings.taverns > 0 ? 2 : 0;
             const templeBonus = state.buildings.temples > 0 ? state.buildings.temples * 1 : 0;
@@ -582,6 +686,9 @@ function gameReducer(state: GameState, action: Action): GameState {
       // --- Update History & Stats ---
       const newHistory = [...state.history, { tick: state.tick, pop: survivors.length, food: round2(finalFood) }].slice(-520); // Keep 10 years of weekly history
 
+      // Count starvation - if anyone has food shortage
+      const isAnyoneStarving = availableFood < totalConsumption;
+      
       const newStats = {
           ...state.stats,
           totalBirths: state.stats.totalBirths + newBabies.length,
@@ -589,7 +696,7 @@ function gameReducer(state: GameState, action: Action): GameState {
           peakPopulation: Math.max(state.stats.peakPopulation, survivors.length),
           totalFoodProduced: round2(state.stats.totalFoodProduced + producedFood),
           totalGoldMined: round2(state.stats.totalGoldMined + producedGold),
-          starvationDays: isStarving ? state.stats.starvationDays + 1 : state.stats.starvationDays
+          starvationDays: isAnyoneStarving ? state.stats.starvationDays + 1 : state.stats.starvationDays
       };
 
       if (survivors.length === 0) {
@@ -834,6 +941,10 @@ export default function App() {
   const handleTrade = (resource: 'food' | 'wood' | 'stone', action: 'buy' | 'sell') => {
       dispatch({ type: 'TRADE_RESOURCE', resource, action });
   }
+  
+  const handleSetFoodPriority = (priority: FoodPriority) => {
+      dispatch({ type: 'SET_FOOD_PRIORITY', priority });
+  }
 
   const year = Math.floor(state.tick / WEEKS_PER_YEAR) + 1;
   const weekOfYear = state.tick % WEEKS_PER_YEAR;
@@ -914,6 +1025,7 @@ export default function App() {
              onFestival={handleFestival}
              onResearch={handleResearch}
              onTrade={handleTrade}
+             onSetFoodPriority={handleSetFoodPriority}
              onTogglePause={() => dispatch({ type: 'TOGGLE_PAUSE' })} 
            />
         </div>

@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { GameState, Job } from '../types';
+import { GameState, Job, FoodPriority } from '../types';
 import { BUILDING_COSTS, TECH_TREE, TRADE_RATES, TRADE_AMOUNT } from '../constants';
 import { GiHelp, GiHammerDrop, GiPartyFlags, GiHouse, GiScrollQuill, GiCheckMark, GiStoneWall, GiBookshelf, GiBeerStein, GiTrade, GiCoins, GiHolySymbol, GiFarmTractor, GiWoodPile, GiMineTruck, GiWatchtower, GiGrainBundle, GiAnvil, GiTempleGate, GiAncientColumns } from 'react-icons/gi';
 
@@ -11,10 +11,11 @@ interface GameControlsProps {
   onFestival: () => void;
   onResearch: (techId: string) => void;
   onTrade: (resource: 'food' | 'wood' | 'stone', action: 'buy' | 'sell') => void;
+  onSetFoodPriority: (priority: FoodPriority) => void;
   onTogglePause: () => void;
 }
 
-export const GameControls: React.FC<GameControlsProps> = ({ state, onAssignJob, onConstruct, onFestival, onResearch, onTrade, onTogglePause }) => {
+export const GameControls: React.FC<GameControlsProps> = ({ state, onAssignJob, onConstruct, onFestival, onResearch, onTrade, onSetFoodPriority, onTogglePause }) => {
   const [showHelp, setShowHelp] = useState(false);
   const [tab, setTab] = useState<'jobs' | 'build' | 'tech' | 'trade'>('jobs');
 
@@ -108,6 +109,27 @@ export const GameControls: React.FC<GameControlsProps> = ({ state, onAssignJob, 
             <div className="mb-4 bg-stone-900/50 p-3 rounded border border-stone-700">
                 <div className="text-stone-400 text-sm">可用劳动力</div>
                 <div className="text-2xl text-white font-mono">{unemployedCount}</div>
+            </div>
+            
+            {/* Food Priority Setting */}
+            <div className="mb-4 bg-stone-900/50 p-3 rounded border border-amber-900/30">
+                <div className="text-amber-400 text-sm mb-2 font-bold">食物分配优先级</div>
+                <div className="text-stone-500 text-xs mb-2">食物不足时优先喂养：</div>
+                <div className="grid grid-cols-2 gap-2">
+                    {Object.values(FoodPriority).map(priority => (
+                        <button
+                            key={priority}
+                            onClick={() => onSetFoodPriority(priority)}
+                            className={`px-2 py-1 text-xs rounded ${
+                                state.foodPriority === priority 
+                                    ? 'bg-amber-700 text-white font-bold' 
+                                    : 'bg-stone-700 text-stone-400 hover:bg-stone-600'
+                            }`}
+                        >
+                            {priority}
+                        </button>
+                    ))}
+                </div>
             </div>
 
             <div className="space-y-3 overflow-y-auto flex-1 custom-scrollbar pr-2">
