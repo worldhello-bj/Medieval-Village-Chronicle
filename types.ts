@@ -102,6 +102,8 @@ export interface GameStats {
   totalGoldMined: number;
   festivalsHeld: number;
   starvationDays: number;
+  invasionsRepelled: number;
+  raidsSurvived: number;
 }
 
 export interface GameState {
@@ -126,6 +128,8 @@ export interface GameState {
   stats: GameStats;
   eventPool: GameEvent[]; // Pool of available events (mixed AI and fixed)
   foodPriority: FoodPriority; // Food distribution priority setting
+  endingSummary?: string; // AI-generated ending summary
+  endingType?: string; // Type of ending achieved
 }
 
 export interface LogEntry {

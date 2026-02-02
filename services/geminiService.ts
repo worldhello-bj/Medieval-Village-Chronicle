@@ -53,6 +53,70 @@ const SEVERE_NEGATIVE_EVENTS: EventTemplate[] = [
   { message: "土匪洗劫了村庄。", type: 'danger', deltaFood: -60, deltaWood: -30, deltaGold: -50, deltaPop: -1 },
 ];
 
+// Invasion and raid events - require sufficient guards to defend
+interface MilitaryEventTemplate extends EventTemplate {
+  requiredGuards?: (totalPop: number) => number; // Function to calculate required guards
+  successMessage?: string; // Message when defended successfully
+  failureMessage?: string; // Message when defense fails
+  successDeltas?: { deltaFood: number; deltaWood: number; deltaGold: number; deltaPop: number };
+  failureDeltas?: { deltaFood: number; deltaWood: number; deltaGold: number; deltaPop: number };
+}
+
+const INVASION_RAID_EVENTS: MilitaryEventTemplate[] = [
+  {
+    message: "小股土匪试图袭击村庄！",
+    type: 'warning',
+    deltaFood: 0,
+    deltaWood: 0,
+    deltaGold: 0,
+    deltaPop: 0,
+    requiredGuards: (totalPop) => Math.max(2, Math.ceil(totalPop * 0.1)),
+    successMessage: "守卫成功击退了土匪的袭击！",
+    failureMessage: "土匪洗劫了村庄，造成严重损失！",
+    successDeltas: { deltaFood: 0, deltaWood: 0, deltaGold: 10, deltaPop: 0 },
+    failureDeltas: { deltaFood: -80, deltaWood: -40, deltaGold: -60, deltaPop: -2 }
+  },
+  {
+    message: "一队流寇正在接近村庄！",
+    type: 'warning',
+    deltaFood: 0,
+    deltaWood: 0,
+    deltaGold: 0,
+    deltaPop: 0,
+    requiredGuards: (totalPop) => Math.max(3, Math.ceil(totalPop * 0.15)),
+    successMessage: "守卫英勇作战，流寇落荒而逃！",
+    failureMessage: "流寇攻破防线，村庄遭受重创！",
+    successDeltas: { deltaFood: 0, deltaWood: 0, deltaGold: 15, deltaPop: 0 },
+    failureDeltas: { deltaFood: -100, deltaWood: -60, deltaGold: -80, deltaPop: -3 }
+  },
+  {
+    message: "敌对势力发起了小规模入侵！",
+    type: 'danger',
+    deltaFood: 0,
+    deltaWood: 0,
+    deltaGold: 0,
+    deltaPop: 0,
+    requiredGuards: (totalPop) => Math.max(4, Math.ceil(totalPop * 0.2)),
+    successMessage: "村庄守卫英勇击退了入侵者，缴获了战利品！",
+    failureMessage: "入侵者攻陷村庄，造成惨重损失！",
+    successDeltas: { deltaFood: 20, deltaWood: 10, deltaGold: 30, deltaPop: 0 },
+    failureDeltas: { deltaFood: -120, deltaWood: -80, deltaGold: -100, deltaPop: -5 }
+  },
+  {
+    message: "大规模劫掠队伍兵临城下！",
+    type: 'danger',
+    deltaFood: 0,
+    deltaWood: 0,
+    deltaGold: 0,
+    deltaPop: 0,
+    requiredGuards: (totalPop) => Math.max(5, Math.ceil(totalPop * 0.25)),
+    successMessage: "在守卫的顽强抵抗下，劫掠者被击退！村民士气大振！",
+    failureMessage: "劫掠者摧毁了村庄的防御，村民四散逃亡！",
+    successDeltas: { deltaFood: 30, deltaWood: 20, deltaGold: 50, deltaPop: 0 },
+    failureDeltas: { deltaFood: -150, deltaWood: -100, deltaGold: -120, deltaPop: -8 }
+  }
+];
+
 // Happiness-based fixed events
 const HAPPINESS_EVENTS: EventTemplate[] = [
   { message: "村民因高幸福度而工作效率大增！", type: 'success', deltaFood: 0, deltaWood: 0, deltaGold: 0, deltaPop: 0 },
@@ -111,6 +175,11 @@ export const getFixedEvents = (state: GameState): GameEvent[] => {
   }
   
   return events;
+};
+
+// Get military events for invasion/raid - returns the raw templates
+export const getMilitaryEventTemplates = (): MilitaryEventTemplate[] => {
+  return INVASION_RAID_EVENTS;
 };
 
 // Generate multiple AI events at once (for initial pool and replenishment)
@@ -297,4 +366,52 @@ export const generateVillagerBio = async (name: string, age: number, job: string
     console.warn('Backend API error, using fallback templates:', error.message);
     return generateBioFallback(name, job);
   }
+};
+
+// Generate AI-powered ending summary
+export const generateEndingSummary = async (state: GameState, endingType: string, endingReason?: string): Promise<string> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/generate-ending`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ state, endingType, endingReason }),
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      console.log('AI Ending summary generated via backend API');
+      return data.summary;
+    }
+
+    // Fallback to generic message
+    console.warn('Backend API unavailable for ending generation');
+    return generateEndingFallback(state, endingType, endingReason);
+
+  } catch (error: any) {
+    console.warn('Backend API error for ending generation:', error.message);
+    return generateEndingFallback(state, endingType, endingReason);
+  }
+};
+
+// Fallback ending summary generator
+const generateEndingFallback = (state: GameState, endingType: string, endingReason?: string): string => {
+  const yearsPlayed = Math.floor(state.tick / 52);
+  const finalPop = state.population?.length || 0;
+  
+  if (endingType === '灭亡') {
+    if (endingReason === '军事不足') {
+      return `在第${yearsPlayed}年，村庄因防御力量薄弱而被入侵者摧毁。${state.stats?.peakPopulation || 0}位村民曾在这里生活，但最终无人幸存。这是一个关于准备不足的悲惨故事。`;
+    } else if (endingReason === '人口灭绝') {
+      return `经过${yearsPlayed}年的挣扎，村庄最终因饥荒、疾病和绝望而消亡。曾经有${state.stats?.peakPopulation || 0}人在此安居，如今只剩空荡荡的废墟。`;
+    }
+    return `村庄在第${yearsPlayed}年走向终结。${state.stats?.totalDeaths || 0}人逝去，这片土地将被遗忘。`;
+  } else if (endingType === '胜利') {
+    return `经过${yearsPlayed}年的艰苦奋斗，村庄繁荣昌盛！${finalPop}位村民享受着和平与富足，击退了${state.stats?.invasionsRepelled || 0}次入侵。这是一个传奇般的成功故事。`;
+  } else if (endingType === '生存') {
+    return `${yearsPlayed}年过去了，村庄艰难地生存了下来。${finalPop}位村民仍在坚持，虽然条件艰苦，但希望犹在。`;
+  }
+  
+  return `村庄的故事在第${yearsPlayed}年结束，留下了${finalPop}位幸存者和无数回忆。`;
 };

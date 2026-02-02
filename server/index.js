@@ -138,6 +138,67 @@ app.post('/api/generate-bio', async (req, res) => {
   }
 });
 
+// API endpoint for generating game ending summary
+app.post('/api/generate-ending', async (req, res) => {
+  try {
+    const { state, endingType, endingReason } = req.body;
+    
+    if (!state || !endingType) {
+      return res.status(400).json({ error: 'Game state and ending type are required' });
+    }
+
+    const ai = getAI();
+    if (!ai) {
+      return res.status(503).json({ error: 'AI service not configured' });
+    }
+
+    const yearsPlayed = Math.floor(state.tick / 52);
+    const finalPop = state.population?.length || 0;
+    
+    const prompt = `
+      请为一个中世纪村庄游戏生成一段2-3句话的结局总结（使用中文）。
+      风格应当引人入胜、富有戏剧性，并符合历史背景。
+      
+      游戏数据:
+      结局类型: ${endingType}
+      ${endingReason ? `结局原因: ${endingReason}` : ''}
+      游玩时长: ${yearsPlayed} 年
+      最终人口: ${finalPop} 人
+      峰值人口: ${state.stats?.peakPopulation || 0} 人
+      总死亡数: ${state.stats?.totalDeaths || 0} 人
+      总出生数: ${state.stats?.totalBirths || 0} 人
+      击退入侵: ${state.stats?.invasionsRepelled || 0} 次
+      幸存劫掠: ${state.stats?.raidsSurvived || 0} 次
+      难度: ${state.difficulty}
+      
+      请根据这些数据生成一段有趣、引人注目的结局总结。
+      如果是灭亡结局，要说明灭亡原因并营造悲壮气氛。
+      如果是胜利结局，要突出村庄的成就和辉煌。
+    `;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: prompt,
+    });
+
+    const text = response.text;
+    if (!text) {
+      return res.status(500).json({ error: 'No response from AI' });
+    }
+
+    res.json({ summary: text });
+
+  } catch (error) {
+    console.error('Error generating ending:', error);
+    
+    if (error.status === 429 || error.code === 429) {
+      return res.status(429).json({ error: 'Rate limit exceeded' });
+    }
+    
+    res.status(500).json({ error: 'Failed to generate ending' });
+  }
+});
+
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({ 
