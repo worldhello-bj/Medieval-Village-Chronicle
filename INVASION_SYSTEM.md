@@ -102,10 +102,12 @@ These appear on the ending screen if you've faced any military challenges.
 ## Strategy Tips
 
 1. **Maintain Guards**: Always keep enough guards relative to population
-2. **Build Defenses**: Walls and watchtowers increase guard efficiency
-3. **Research Archery**: Improves guard coverage per person
+2. **Build Defenses**: Walls and watchtowers increase guard efficiency (walls add +5 per wall, watchtowers add +3 coverage)
+3. **Research Archery**: Improves guard coverage from 10 to 15 per person
 4. **Monitor Population**: Larger populations attract bigger threats
 5. **Don't Neglect Military**: Economic growth without defense = destruction
+
+Note: The defense buildings (walls, watchtowers) and archery technology already exist in the game and work with the invasion system.
 
 ## Implementation Details
 

@@ -54,7 +54,7 @@ const SEVERE_NEGATIVE_EVENTS: EventTemplate[] = [
 ];
 
 // Invasion and raid events - require sufficient guards to defend
-interface MilitaryEventTemplate extends EventTemplate {
+export interface MilitaryEventTemplate extends EventTemplate {
   requiredGuards?: (totalPop: number) => number; // Function to calculate required guards
   successMessage?: string; // Message when defended successfully
   failureMessage?: string; // Message when defense fails

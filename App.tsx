@@ -39,6 +39,7 @@ type Action =
   | { type: 'RESEARCH_TECH'; techId: string }
   | { type: 'TRADE_RESOURCE'; resource: 'food' | 'wood' | 'stone'; action: 'buy' | 'sell' }
   | { type: 'SET_FOOD_PRIORITY'; priority: FoodPriority }
+  | { type: 'UPDATE_ENDING_SUMMARY'; summary: string }
   | { type: 'RESTART_GAME' };
 
 const initialStats = {
@@ -331,17 +332,16 @@ function gameReducer(state: GameState, action: Action): GameState {
       return { ...state, foodPriority: action.priority };
     }
 
+    case 'UPDATE_ENDING_SUMMARY': {
+      return { ...state, endingSummary: action.summary };
+    }
+
     case 'TICK': {
       if (state.paused || state.status !== GameStatus.Playing) return state;
 
       // Check Game End
       if (state.tick >= GAME_END_TICK) {
           const endingType = '胜利';
-          
-          // Generate AI ending summary asynchronously
-          generateEndingSummary(state, endingType).then(summary => {
-            // Summary will be displayed on ending screen
-          });
           
           return { 
             ...state, 
@@ -506,11 +506,6 @@ function gameReducer(state: GameState, action: Action): GameState {
               // Catastrophic military failure - trigger destruction ending
               const endingType = '灭亡';
               const endingReason = '军事不足';
-              
-              // Generate AI ending summary asynchronously
-              generateEndingSummary(state, endingType, endingReason).then(summary => {
-                // Summary will be set via a state update later
-              });
               
               return {
                 ...state,
@@ -782,7 +777,7 @@ function gameReducer(state: GameState, action: Action): GameState {
 
       // Apply invasion/raid casualties
       if (invasionLosses.pop < 0) {
-        const casualtyCount = Math.abs(invasionLosses.pop);
+        const casualtyCount = Math.min(Math.abs(invasionLosses.pop), survivors.length);
         const casualtiesRemoved = survivors.splice(-casualtyCount, casualtyCount); // Remove from end (random victims)
         deathCount += casualtiesRemoved.length;
       }
@@ -814,11 +809,6 @@ function gameReducer(state: GameState, action: Action): GameState {
       if (survivors.length === 0) {
            const endingType = '灭亡';
            const endingReason = '人口灭绝';
-           
-           // Generate AI ending summary asynchronously
-           generateEndingSummary(state, endingType, endingReason).then(summary => {
-             // Summary will be stored when game finishes
-           });
            
            return {
                ...state,
@@ -1064,6 +1054,23 @@ export default function App() {
       }
     }
   }, [state.tick, state.paused, state.status, state.eventPool]);
+
+  // Generate AI ending summary when game finishes
+  useEffect(() => {
+    if (state.status === GameStatus.Finished && state.endingType && !state.endingSummary?.includes('AI generated')) {
+      // Generate AI summary asynchronously
+      const endingReason = state.endingSummary?.includes('军事') ? '军事不足' : 
+                          state.endingSummary?.includes('人口') ? '人口灭绝' : undefined;
+      
+      generateEndingSummary(state, state.endingType, endingReason).then(summary => {
+        if (summary && summary !== state.endingSummary) {
+          dispatch({ type: 'UPDATE_ENDING_SUMMARY', summary });
+        }
+      }).catch(error => {
+        console.warn('Failed to generate AI ending summary:', error);
+      });
+    }
+  }, [state.status, state.endingType]);
 
   const handleAssignJob = (job: Job, amount: number) => {
     dispatch({ type: 'ASSIGN_JOB', job, amount });
