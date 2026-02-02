@@ -79,6 +79,13 @@ export const BUILDING_COSTS = {
   Blacksmith: { wood: 60, stone: 50, gold: 60 },
   Temple: { wood: 100, stone: 120, gold: 100 },
   University: { wood: 120, stone: 250, gold: 200 },
+  // New Buildings
+  Workshop: { wood: 70, stone: 40, gold: 50 },
+  Barracks: { wood: 80, stone: 70, gold: 40 },
+  Stables: { wood: 90, stone: 30, gold: 60 },
+  Aqueduct: { wood: 50, stone: 150, gold: 80 },
+  TrainingGrounds: { wood: 60, stone: 80, gold: 50 },
+  Alchemist: { wood: 80, stone: 60, gold: 100 },
   Festival: { wood: 0, stone: 0, gold: 60, food: 120 } 
 };
 
@@ -88,6 +95,30 @@ export const TRADE_RATES = {
     food: { buy: 5, sell: 2 }, 
     wood: { buy: 10, sell: 4 },
     stone: { buy: 25, sell: 10 } 
+};
+
+// Building Maintenance Costs (per week)
+export const BUILDING_MAINTENANCE = {
+  houses: { wood: 0.5, gold: 0.2 },
+  markets: { wood: 1, gold: 1 },
+  walls: { stone: 0.5, gold: 0 },
+  libraries: { wood: 1, gold: 0.5 },
+  taverns: { wood: 1.5, gold: 1.5 },
+  cathedrals: { wood: 2, stone: 1, gold: 2 },
+  farms: { wood: 0.5, gold: 0.3 },
+  lumberMills: { wood: 1, gold: 0.5 },
+  mines: { wood: 1, stone: 0.5, gold: 0.5 },
+  watchtowers: { wood: 1, gold: 0.5 },
+  granaries: { wood: 0.8, gold: 0.3 },
+  blacksmiths: { wood: 1.5, gold: 1 },
+  temples: { wood: 1.5, gold: 1 },
+  universities: { wood: 2, stone: 0.5, gold: 1.5 },
+  workshops: { wood: 1, gold: 0.8 },
+  barracks: { wood: 1.5, gold: 1 },
+  stables: { wood: 2, gold: 1.5 },
+  aqueducts: { stone: 1, gold: 0.5 },
+  trainingGrounds: { wood: 1, gold: 0.8 },
+  alchemists: { wood: 1, gold: 1.2 }
 };
 
 export const HOUSE_CAPACITY_BASE = 5;
@@ -109,6 +140,16 @@ export const TECH_TREE: Tech[] = [
     { id: 'medicine_1', name: '草药学', description: '改善医疗卫生。生病死亡率大幅降低，健康恢复速度翻倍。', cost: 250 },
     { id: 'irrigation_1', name: '灌溉渠', description: '建立水利设施。农夫产量额外 +20% (与轮作叠加)。', cost: 300 },
     { id: 'masonry_1', name: '石工建筑', description: '改良房屋结构。房屋人口容量从 5 提升至 8。', cost: 400 },
+    // Tier 4 - Advanced Technologies
+    { id: 'metallurgy_1', name: '冶金术', description: '精炼金属技术。矿工黄金产量 +30%。', cost: 500 },
+    { id: 'engineering_1', name: '工程学', description: '建筑技术升级。建造成本降低 10%。', cost: 550 },
+    { id: 'preservation_1', name: '食物保存', description: '腌制与储藏技术。粮仓效率提升，食物消耗减少 10%。', cost: 600 },
+    { id: 'cavalry_1', name: '骑兵训练', description: '组建骑兵部队。守卫战斗力提升 50%。', cost: 650 },
+    // Tier 5 - Masterworks
+    { id: 'alchemy_1', name: '炼金术', description: '神秘的知识。学者额外产出 +15 知识。', cost: 800 },
+    { id: 'architecture_1', name: '建筑学', description: '宏伟建筑设计。建筑物效果提升 20%。', cost: 850 },
+    { id: 'philosophy_1', name: '哲学', description: '思想启蒙。村民幸福度缓慢恢复速度提升。', cost: 900 },
+    { id: 'advanced_farming', name: '高级农业', description: '先进耕作法。农夫产量额外 +30%。', cost: 950 },
 ];
 
 export const NAMES_MALE = [

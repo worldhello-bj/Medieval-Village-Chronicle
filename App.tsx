@@ -6,7 +6,7 @@ import {
   CONSUMPTION, GUARD_COVERAGE_BASE, GUARD_COVERAGE_UPGRADED, TECH_TREE, 
   FARMER_WEEKLY_BASE, WINTER_WOOD_CONSUMPTION, WALL_GUARD_BONUS,
   WEEKS_PER_YEAR, SEASON_BOUNDS, MAX_YEARS, GAME_END_TICK, DIFFICULTY_SETTINGS,
-  TRADE_RATES, TRADE_AMOUNT
+  TRADE_RATES, TRADE_AMOUNT, BUILDING_MAINTENANCE
 } from './constants';
 import { generateInitialPopulation, generateVillager } from './utils/gameHelper';
 import { generateAIEventsBatch, getFixedEvents, getMilitaryEventTemplates, generateEndingSummary, determineEndingType } from './services/geminiService';
@@ -60,7 +60,7 @@ const initialState: GameState = {
   tick: 0,
   season: Season.Spring,
   resources: DIFFICULTY_SETTINGS[Difficulty.Normal].startingResources,
-  buildings: { houses: 4, markets: 0, walls: 0, libraries: 0, taverns: 0, cathedrals: 0, farms: 0, lumberMills: 0, mines: 0, watchtowers: 0, granaries: 0, blacksmiths: 0, temples: 0, universities: 0 },
+  buildings: { houses: 4, markets: 0, walls: 0, libraries: 0, taverns: 0, cathedrals: 0, farms: 0, lumberMills: 0, mines: 0, watchtowers: 0, granaries: 0, blacksmiths: 0, temples: 0, universities: 0, workshops: 0, barracks: 0, stables: 0, aqueducts: 0, trainingGrounds: 0, alchemists: 0 },
   technologies: [],
   population: [],
   logs: [],
@@ -234,6 +234,12 @@ function gameReducer(state: GameState, action: Action): GameState {
         if (building === 'Blacksmith') newBuildings.blacksmiths += 1;
         if (building === 'Temple') newBuildings.temples += 1;
         if (building === 'University') newBuildings.universities += 1;
+        if (building === 'Workshop') newBuildings.workshops += 1;
+        if (building === 'Barracks') newBuildings.barracks += 1;
+        if (building === 'Stables') newBuildings.stables += 1;
+        if (building === 'Aqueduct') newBuildings.aqueducts += 1;
+        if (building === 'TrainingGrounds') newBuildings.trainingGrounds += 1;
+        if (building === 'Alchemist') newBuildings.alchemists += 1;
         
         return {
           ...state,
@@ -372,7 +378,12 @@ function gameReducer(state: GameState, action: Action): GameState {
       
       if (state.technologies.includes('farming_1')) foodMultiplier += 0.2;
       if (state.technologies.includes('irrigation_1')) foodMultiplier += 0.2;
-      if (state.buildings.farms > 0) foodMultiplier += state.buildings.farms * 0.15;
+      if (state.technologies.includes('advanced_farming')) foodMultiplier += 0.3;
+      
+      // Building bonuses (architecture tech increases all building effects by 20%)
+      const architectureBonus = state.technologies.includes('architecture_1') ? 1.2 : 1;
+      if (state.buildings.farms > 0) foodMultiplier += state.buildings.farms * 0.15 * architectureBonus;
+      if (state.buildings.aqueducts > 0) foodMultiplier += state.buildings.aqueducts * 0.1 * architectureBonus;
       
       // Apply Difficulty Production Multiplier
       foodMultiplier *= settings.productionMultiplier;
@@ -417,20 +428,27 @@ function gameReducer(state: GameState, action: Action): GameState {
               let woodMult = round2(1.0 * settings.productionMultiplier);
               if (state.technologies.includes('tools_1')) woodMult = round2(woodMult + 0.2);
               if (state.technologies.includes('forestry_1')) woodMult = round2(woodMult + 0.2);
-              if (state.buildings.lumberMills > 0) woodMult = round2(woodMult + state.buildings.lumberMills * 0.15);
-              if (state.buildings.blacksmiths > 0) woodMult = round2(woodMult + state.buildings.blacksmiths * 0.1);
+              
+              // Building bonuses use the architectureBonus from outer scope
+              if (state.buildings.lumberMills > 0) woodMult = round2(woodMult + state.buildings.lumberMills * 0.15 * architectureBonus);
+              if (state.buildings.blacksmiths > 0) woodMult = round2(woodMult + state.buildings.blacksmiths * 0.1 * architectureBonus);
+              if (state.buildings.workshops > 0) woodMult = round2(woodMult + state.buildings.workshops * 0.1 * architectureBonus);
               producedWood = round2(producedWood + income.wood * woodMult * efficiency);
 
               let stoneGoldMult = round2(1.0 * settings.productionMultiplier);
               if (state.technologies.includes('tools_1')) stoneGoldMult = round2(stoneGoldMult + 0.2);
-              if (state.buildings.mines > 0) stoneGoldMult = round2(stoneGoldMult + state.buildings.mines * 0.15);
-              if (state.buildings.blacksmiths > 0) stoneGoldMult = round2(stoneGoldMult + state.buildings.blacksmiths * 0.1);
+              if (state.technologies.includes('metallurgy_1')) stoneGoldMult = round2(stoneGoldMult + 0.3);
+              if (state.buildings.mines > 0) stoneGoldMult = round2(stoneGoldMult + state.buildings.mines * 0.15 * architectureBonus);
+              if (state.buildings.blacksmiths > 0) stoneGoldMult = round2(stoneGoldMult + state.buildings.blacksmiths * 0.1 * architectureBonus);
+              if (state.buildings.workshops > 0) stoneGoldMult = round2(stoneGoldMult + state.buildings.workshops * 0.1 * architectureBonus);
               producedStone = round2(producedStone + income.stone * stoneGoldMult * efficiency);
               producedGold = round2(producedGold + income.gold * stoneGoldMult * efficiency);
 
-              const libraryBonus = state.buildings.libraries > 0 ? round2(state.buildings.libraries * 0.2 * 7) : 0;
-              const universityBonus = state.buildings.universities > 0 ? round2(state.buildings.universities * 0.3 * 7) : 0;
-              producedKnowledge = round2(producedKnowledge + (income.knowledge * efficiency) + (v.job === Job.Scholar && state.technologies.includes('scribing_1') ? (7 * efficiency) : 0) + (v.job === Job.Scholar ? ((libraryBonus + universityBonus) * efficiency) : 0));
+              const libraryBonus = state.buildings.libraries > 0 ? round2(state.buildings.libraries * 0.2 * 7 * architectureBonus) : 0;
+              const universityBonus = state.buildings.universities > 0 ? round2(state.buildings.universities * 0.3 * 7 * architectureBonus) : 0;
+              const alchemistBonus = state.buildings.alchemists > 0 ? round2(state.buildings.alchemists * 0.15 * 7 * architectureBonus) : 0;
+              const alchemyTechBonus = state.technologies.includes('alchemy_1') ? 15 : 0;
+              producedKnowledge = round2(producedKnowledge + (income.knowledge * efficiency) + (v.job === Job.Scholar && state.technologies.includes('scribing_1') ? (7 * efficiency) : 0) + (v.job === Job.Scholar ? ((libraryBonus + universityBonus + alchemistBonus + alchemyTechBonus) * efficiency) : 0));
           }
       });
 
@@ -446,7 +464,10 @@ function gameReducer(state: GameState, action: Action): GameState {
       const baseCoverage = state.technologies.includes('archery_1') ? GUARD_COVERAGE_UPGRADED : GUARD_COVERAGE_BASE;
       const wallBonus = state.buildings.walls * WALL_GUARD_BONUS;
       const watchtowerBonus = state.buildings.watchtowers * 3;
-      const guardCoverage = baseCoverage + wallBonus + watchtowerBonus;
+      const barracksBonus = state.buildings.barracks * 2;
+      const trainingGroundsBonus = state.buildings.trainingGrounds * 2;
+      const cavalryBonus = state.technologies.includes('cavalry_1') ? (state.buildings.stables * 3) : 0;
+      const guardCoverage = baseCoverage + wallBonus + watchtowerBonus + barracksBonus + trainingGroundsBonus + cavalryBonus;
       const requiredGuards = Math.max(1, Math.ceil(totalPop / guardCoverage));
       const isSecure = guards >= requiredGuards;
       
@@ -566,14 +587,16 @@ function gameReducer(state: GameState, action: Action): GameState {
 
       // Calculate total food consumption with lower rate for children
       // Granary reduces food consumption by 5% per building
+      // Preservation tech reduces consumption by 10%
       const granaryReduction = state.buildings.granaries > 0 ? (1 - state.buildings.granaries * 0.05) : 1;
+      const preservationReduction = state.technologies.includes('preservation_1') ? 0.9 : 1;
       
       let rawFoodConsumption = 0;
       const villagerFoodNeeds: { villager: Villager; need: number; priority: number }[] = [];
       
       state.population.forEach((v, index) => {
         const foodNeed = v.age < 16 ? CONSUMPTION.childFood : CONSUMPTION.food;
-        const adjustedNeed = round2(foodNeed * settings.consumptionRate * granaryReduction);
+        const adjustedNeed = round2(foodNeed * settings.consumptionRate * granaryReduction * preservationReduction);
         rawFoodConsumption = round2(rawFoodConsumption + adjustedNeed);
         
         // Calculate priority based on food priority setting
@@ -750,7 +773,8 @@ function gameReducer(state: GameState, action: Action): GameState {
                 if (newV.hunger === 0) {
                   // Natural happiness regression towards baseline with bonuses
                   const baseIncrease = 2; // Base happiness recovery per week when fed
-                  const totalIncrease = baseIncrease + tavernBonus + templeBonus; // Taverns and temples boost recovery
+                  const philosophyBonus = state.technologies.includes('philosophy_1') ? 3 : 0;
+                  const totalIncrease = baseIncrease + tavernBonus + templeBonus + philosophyBonus; // Taverns, temples, and philosophy boost recovery
                   const regressionRate = 1; // Natural regression rate per week
                   
                   if (newV.happiness < newV.happinessBaseline) {
@@ -844,15 +868,54 @@ function gameReducer(state: GameState, action: Action): GameState {
            };
       }
 
+      // --- Building Maintenance Costs ---
+      let maintenanceWood = 0;
+      let maintenanceStone = 0;
+      let maintenanceGold = 0;
+      
+      // Calculate total maintenance costs
+      const buildingTypes = Object.keys(state.buildings) as (keyof typeof state.buildings)[];
+      buildingTypes.forEach(buildingType => {
+        const count = state.buildings[buildingType];
+        const maintenance = BUILDING_MAINTENANCE[buildingType];
+        if (maintenance && count > 0) {
+          maintenanceWood += round2((maintenance.wood || 0) * count);
+          maintenanceStone += round2((maintenance.stone || 0) * count);
+          maintenanceGold += round2((maintenance.gold || 0) * count);
+        }
+      });
+      
+      // Apply engineering tech to reduce maintenance
+      if (state.technologies.includes('engineering_1')) {
+        maintenanceWood = round2(maintenanceWood * 0.9);
+        maintenanceStone = round2(maintenanceStone * 0.9);
+        maintenanceGold = round2(maintenanceGold * 0.9);
+      }
+      
+      // Warn if insufficient resources for maintenance
+      const insufficientMaintenance = 
+        (state.resources.wood + producedWood - consumedWood < maintenanceWood) ||
+        (state.resources.stone + producedStone < maintenanceStone) ||
+        (state.resources.gold + producedGold - theftGold < maintenanceGold);
+      
+      if (insufficientMaintenance && state.tick % 4 === 0) { // Warning every 4 weeks (monthly)
+        newLogs.push({ 
+          id: Math.random().toString(), 
+          tick: state.tick, 
+          message: `建筑维护资源不足！生产效率下降`, 
+          type: 'warning' 
+        });
+      }
+
       return {
         ...state,
         tick: state.tick + 1,
         season: currentSeason,
         resources: {
           food: round2(Math.max(0, finalFood + invasionLosses.food + invasionBonuses.food)),
-          wood: round2(Math.max(0, state.resources.wood + producedWood - consumedWood + invasionLosses.wood + invasionBonuses.wood)),
-          stone: round2(state.resources.stone + producedStone),
-          gold: round2(Math.max(0, state.resources.gold + producedGold - theftGold + invasionLosses.gold + invasionBonuses.gold)),
+          wood: round2(Math.max(0, state.resources.wood + producedWood - consumedWood - maintenanceWood + invasionLosses.wood + invasionBonuses.wood)),
+          stone: round2(Math.max(0, state.resources.stone + producedStone - maintenanceStone)),
+          gold: round2(Math.max(0, state.resources.gold + producedGold - theftGold - maintenanceGold + invasionLosses.gold + invasionBonuses.gold)),
           knowledge: round2(state.resources.knowledge + producedKnowledge)
         },
         population: survivors,
