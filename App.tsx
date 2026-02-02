@@ -924,8 +924,10 @@ function gameReducer(state: GameState, action: Action): GameState {
         tick: state.tick + 1,
         season: currentSeason,
         resources: {
-          // Cap food at MAX_SAFE_FOOD to prevent potential overflow issues
+          // Cap food at MAX_SAFE_FOOD for game balance and to prevent display issues
           // Food is stored as number type (64-bit float), not integer
+          // Only food is capped because it accumulates fastest (produced every week per farmer)
+          // while other resources have natural consumption sinks (buildings, maintenance)
           food: round2(Math.min(MAX_SAFE_FOOD, Math.max(0, finalFood + invasionLosses.food + invasionBonuses.food))),
           wood: round2(Math.max(0, state.resources.wood + producedWood - consumedWood - maintenanceWood + invasionLosses.wood + invasionBonuses.wood)),
           stone: round2(Math.max(0, state.resources.stone + producedStone - maintenanceStone)),

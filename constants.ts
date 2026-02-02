@@ -8,9 +8,9 @@ export const MAX_YEARS = 10;
 export const GAME_END_TICK = WEEKS_PER_YEAR * MAX_YEARS;
 
 // Resource Limits
-// Maximum safe food value to prevent potential overflow issues
+// Maximum safe food value to prevent unrealistic gameplay scenarios and potential display issues
 // Food is stored as JavaScript 'number' type (64-bit float), NOT as integer
-export const MAX_SAFE_FOOD = 999999; // Safe maximum to prevent display/calculation issues
+export const MAX_SAFE_FOOD = 999999; // Cap at a reasonable game balance limit
 
 // Season Boundaries (Week of Year)
 export const SEASON_BOUNDS = {
