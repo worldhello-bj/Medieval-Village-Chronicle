@@ -118,7 +118,7 @@ export interface GameState {
   tick: number; // Days passed
   season: Season;
   resources: {
-    food: number; // Stored as number (64-bit float), NOT integer. Max capped at MAX_SAFE_FOOD
+    food: number; // Number type (64-bit float), capped at MAX_GAME_FOOD for game balance
     wood: number;
     stone: number;
     gold: number;
