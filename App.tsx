@@ -208,14 +208,22 @@ function gameReducer(state: GameState, action: Action): GameState {
       if (building === 'Festival') return state;
       const cost = BUILDING_COSTS[building];
       
+      // Apply engineering tech discount to construction costs
+      const engineeringDiscount = state.technologies.includes('engineering_1') ? 0.9 : 1;
+      const actualCost = {
+        wood: round2(cost.wood * engineeringDiscount),
+        stone: round2(cost.stone * engineeringDiscount),
+        gold: round2(cost.gold * engineeringDiscount)
+      };
+      
       // Cathedral check handled generically by loop below
       // Specific building count increments
-      if (state.resources.wood >= cost.wood && state.resources.stone >= cost.stone && state.resources.gold >= cost.gold) {
+      if (state.resources.wood >= actualCost.wood && state.resources.stone >= actualCost.stone && state.resources.gold >= actualCost.gold) {
         const newResources = {
           ...state.resources,
-          wood: state.resources.wood - cost.wood,
-          stone: state.resources.stone - cost.stone,
-          gold: state.resources.gold - cost.gold
+          wood: state.resources.wood - actualCost.wood,
+          stone: state.resources.stone - actualCost.stone,
+          gold: state.resources.gold - actualCost.gold
         };
         const newBuildings = { ...state.buildings };
         
@@ -447,10 +455,14 @@ function gameReducer(state: GameState, action: Action): GameState {
               const libraryBonus = state.buildings.libraries > 0 ? round2(state.buildings.libraries * 0.2 * 7 * architectureBonus) : 0;
               const universityBonus = state.buildings.universities > 0 ? round2(state.buildings.universities * 0.3 * 7 * architectureBonus) : 0;
               const alchemistBonus = state.buildings.alchemists > 0 ? round2(state.buildings.alchemists * 0.15 * 7 * architectureBonus) : 0;
-              const alchemyTechBonus = state.technologies.includes('alchemy_1') ? 15 : 0;
-              producedKnowledge = round2(producedKnowledge + (income.knowledge * efficiency) + (v.job === Job.Scholar && state.technologies.includes('scribing_1') ? (7 * efficiency) : 0) + (v.job === Job.Scholar ? ((libraryBonus + universityBonus + alchemistBonus + alchemyTechBonus) * efficiency) : 0));
+              producedKnowledge = round2(producedKnowledge + (income.knowledge * efficiency) + (v.job === Job.Scholar && state.technologies.includes('scribing_1') ? (7 * efficiency) : 0) + (v.job === Job.Scholar ? ((libraryBonus + universityBonus + alchemistBonus) * efficiency) : 0));
           }
       });
+
+      // Add flat knowledge bonus from alchemy tech (once per week)
+      if (state.technologies.includes('alchemy_1')) {
+        producedKnowledge = round2(producedKnowledge + 15);
+      }
 
       // --- Harvest (Every Tick is a Week) ---
       const newLogs = [...state.logs];

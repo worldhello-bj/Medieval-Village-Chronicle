@@ -142,9 +142,9 @@ export const TECH_TREE: Tech[] = [
     { id: 'masonry_1', name: '石工建筑', description: '改良房屋结构。房屋人口容量从 5 提升至 8。', cost: 400 },
     // Tier 4 - Advanced Technologies
     { id: 'metallurgy_1', name: '冶金术', description: '精炼金属技术。矿工黄金产量 +30%。', cost: 500 },
-    { id: 'engineering_1', name: '工程学', description: '建筑技术升级。建造成本降低 10%。', cost: 550 },
+    { id: 'engineering_1', name: '工程学', description: '建筑技术升级。建造和维护成本降低 10%。', cost: 550 },
     { id: 'preservation_1', name: '食物保存', description: '腌制与储藏技术。粮仓效率提升，食物消耗减少 10%。', cost: 600 },
-    { id: 'cavalry_1', name: '骑兵训练', description: '组建骑兵部队。守卫战斗力提升 50%。', cost: 650 },
+    { id: 'cavalry_1', name: '骑兵训练', description: '组建骑兵部队。每个马厩提供 +3 守卫覆盖。', cost: 650 },
     // Tier 5 - Masterworks
     { id: 'alchemy_1', name: '炼金术', description: '神秘的知识。学者额外产出 +15 知识。', cost: 800 },
     { id: 'architecture_1', name: '建筑学', description: '宏伟建筑设计。建筑物效果提升 20%。', cost: 850 },
