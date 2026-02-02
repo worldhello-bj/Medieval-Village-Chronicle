@@ -6,7 +6,7 @@ import {
   CONSUMPTION, GUARD_COVERAGE_BASE, GUARD_COVERAGE_UPGRADED, TECH_TREE, 
   FARMER_WEEKLY_BASE, WINTER_WOOD_CONSUMPTION, WALL_GUARD_BONUS,
   WEEKS_PER_YEAR, SEASON_BOUNDS, MAX_YEARS, GAME_END_TICK, DIFFICULTY_SETTINGS,
-  TRADE_RATES, TRADE_AMOUNT, BUILDING_MAINTENANCE
+  TRADE_RATES, TRADE_AMOUNT, BUILDING_MAINTENANCE, MAX_SAFE_FOOD
 } from './constants';
 import { generateInitialPopulation, generateVillager } from './utils/gameHelper';
 import { generateAIEventsBatch, getFixedEvents, getMilitaryEventTemplates, generateEndingSummary, determineEndingType } from './services/geminiService';
@@ -924,7 +924,9 @@ function gameReducer(state: GameState, action: Action): GameState {
         tick: state.tick + 1,
         season: currentSeason,
         resources: {
-          food: round2(Math.max(0, finalFood + invasionLosses.food + invasionBonuses.food)),
+          // Cap food at MAX_SAFE_FOOD to prevent potential overflow issues
+          // Food is stored as number type (64-bit float), not integer
+          food: round2(Math.min(MAX_SAFE_FOOD, Math.max(0, finalFood + invasionLosses.food + invasionBonuses.food))),
           wood: round2(Math.max(0, state.resources.wood + producedWood - consumedWood - maintenanceWood + invasionLosses.wood + invasionBonuses.wood)),
           stone: round2(Math.max(0, state.resources.stone + producedStone - maintenanceStone)),
           gold: round2(Math.max(0, state.resources.gold + producedGold - theftGold - maintenanceGold + invasionLosses.gold + invasionBonuses.gold)),
