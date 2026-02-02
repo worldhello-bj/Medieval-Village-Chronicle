@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { GameState, Job, FoodPriority } from '../types';
 import { BUILDING_COSTS, TECH_TREE, TRADE_RATES, TRADE_AMOUNT } from '../constants';
 import { GiHelp, GiHammerDrop, GiPartyFlags, GiHouse, GiScrollQuill, GiCheckMark, GiStoneWall, GiBookshelf, GiBeerStein, GiTrade, GiCoins, GiHolySymbol, GiFarmTractor, GiWoodPile, GiMineTruck, GiWatchtower, GiGrainBundle, GiAnvil, GiTempleGate, GiAncientColumns } from 'react-icons/gi';
@@ -18,9 +18,21 @@ interface GameControlsProps {
 export const GameControls: React.FC<GameControlsProps> = ({ state, onAssignJob, onConstruct, onFestival, onResearch, onTrade, onSetFoodPriority, onTogglePause }) => {
   const [showHelp, setShowHelp] = useState(false);
   const [tab, setTab] = useState<'jobs' | 'build' | 'tech' | 'trade'>('jobs');
+  const lastClickTime = useRef<number>(0);
 
   const unemployedCount = state.population.filter(v => v.job === Job.Unemployed).length;
   const jobs = Object.values(Job).filter(j => j !== Job.Unemployed && j !== Job.Child);
+
+  // Debounced job assignment to prevent double-clicks
+  const handleJobAssignment = useCallback((job: Job, amount: number) => {
+    const now = Date.now();
+    // Prevent clicks within 100ms of each other
+    if (now - lastClickTime.current < 100) {
+      return;
+    }
+    lastClickTime.current = now;
+    onAssignJob(job, amount);
+  }, [onAssignJob]);
 
   // Helper to check resource availability
   const canAfford = (type: keyof typeof BUILDING_COSTS) => {
@@ -141,12 +153,12 @@ export const GameControls: React.FC<GameControlsProps> = ({ state, onAssignJob, 
                     <div className="flex items-center space-x-2">
                         <span className="text-stone-400 text-sm w-6 text-center">{count}</span>
                         <button 
-                            onClick={() => onAssignJob(job, -1)}
+                            onClick={() => handleJobAssignment(job, -1)}
                             className="w-8 h-8 rounded bg-stone-600 hover:bg-red-900/50 text-stone-200 flex items-center justify-center text-lg disabled:opacity-30"
                             disabled={count <= 0}
                         >-</button>
                         <button 
-                            onClick={() => onAssignJob(job, 1)}
+                            onClick={() => handleJobAssignment(job, 1)}
                             className="w-8 h-8 rounded bg-stone-600 hover:bg-emerald-900/50 text-stone-200 flex items-center justify-center text-lg disabled:opacity-30"
                             disabled={unemployedCount <= 0}
                         >+</button>
