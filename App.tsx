@@ -65,7 +65,7 @@ const initialState: GameState = {
   population: [],
   logs: [],
   paused: true,
-  gameSpeed: 500, // Slower tick speed because 1 tick is now 1 week (more impactful)
+  gameSpeed: 800, // Slower tick speed for better gameplay pacing (increased from 500ms)
   history: [],
   stats: initialStats,
   eventPool: [], // Initialize empty event pool
