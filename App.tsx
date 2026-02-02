@@ -847,7 +847,18 @@ function gameReducer(state: GameState, action: Action): GameState {
       }
 
       // --- Update History & Stats ---
-      const newHistory = [...state.history, { tick: state.tick, pop: survivors.length, food: round2(finalFood) }].slice(-520); // Keep 10 years of weekly history
+      // Keep limited history to prevent memory issues with chart rendering
+      // Store food as integer to reduce memory footprint
+      // Sample less frequently when history is large to prevent memory overflow
+      const shouldRecordHistory = state.history.length < 200 || state.tick % 2 === 0; // Record every tick until 200 entries, then every other tick
+      
+      const newHistory = shouldRecordHistory 
+        ? [...state.history, { 
+            tick: state.tick, 
+            pop: survivors.length, 
+            food: Math.floor(finalFood) // Store as integer to reduce memory usage
+          }].slice(-260) // Keep 5 years of weekly history (reduced from 10 years to prevent memory issues)
+        : state.history;
 
       // Count starvation - if anyone has food shortage
       const isAnyoneStarving = availableFood < totalConsumption;
