@@ -70,6 +70,14 @@ export const BUILDING_COSTS = {
   Library: { wood: 100, stone: 300, gold: 0 }, 
   Tavern: { wood: 150, stone: 100, gold: 100 },
   Cathedral: { wood: 0, stone: 500, gold: 300 }, 
+  Farm: { wood: 80, stone: 10, gold: 20 },
+  LumberMill: { wood: 120, stone: 30, gold: 30 },
+  Mine: { wood: 100, stone: 50, gold: 50 },
+  Watchtower: { wood: 80, stone: 100, gold: 40 },
+  Granary: { wood: 100, stone: 50, gold: 30 },
+  Blacksmith: { wood: 100, stone: 80, gold: 100 },
+  Temple: { wood: 150, stone: 200, gold: 150 },
+  University: { wood: 200, stone: 400, gold: 300 },
   Festival: { wood: 0, stone: 0, gold: 100, food: 200 } 
 };
 

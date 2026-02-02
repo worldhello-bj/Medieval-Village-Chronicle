@@ -56,7 +56,7 @@ const initialState: GameState = {
   tick: 0,
   season: Season.Spring,
   resources: DIFFICULTY_SETTINGS[Difficulty.Normal].startingResources,
-  buildings: { houses: 4, markets: 0, walls: 0, libraries: 0, taverns: 0, cathedrals: 0 },
+  buildings: { houses: 4, markets: 0, walls: 0, libraries: 0, taverns: 0, cathedrals: 0, farms: 0, lumberMills: 0, mines: 0, watchtowers: 0, granaries: 0, blacksmiths: 0, temples: 0, universities: 0 },
   technologies: [],
   population: [],
   logs: [],
@@ -221,6 +221,14 @@ function gameReducer(state: GameState, action: Action): GameState {
         if (building === 'Library') newBuildings.libraries += 1;
         if (building === 'Tavern') newBuildings.taverns += 1;
         if (building === 'Cathedral') newBuildings.cathedrals += 1;
+        if (building === 'Farm') newBuildings.farms += 1;
+        if (building === 'LumberMill') newBuildings.lumberMills += 1;
+        if (building === 'Mine') newBuildings.mines += 1;
+        if (building === 'Watchtower') newBuildings.watchtowers += 1;
+        if (building === 'Granary') newBuildings.granaries += 1;
+        if (building === 'Blacksmith') newBuildings.blacksmiths += 1;
+        if (building === 'Temple') newBuildings.temples += 1;
+        if (building === 'University') newBuildings.universities += 1;
         
         return {
           ...state,
@@ -341,6 +349,7 @@ function gameReducer(state: GameState, action: Action): GameState {
       
       if (state.technologies.includes('farming_1')) foodMultiplier += 0.2;
       if (state.technologies.includes('irrigation_1')) foodMultiplier += 0.2;
+      if (state.buildings.farms > 0) foodMultiplier += state.buildings.farms * 0.15;
       
       // Apply Difficulty Production Multiplier
       foodMultiplier *= settings.productionMultiplier;
@@ -385,15 +394,20 @@ function gameReducer(state: GameState, action: Action): GameState {
               let woodMult = round2(1.0 * settings.productionMultiplier);
               if (state.technologies.includes('tools_1')) woodMult = round2(woodMult + 0.2);
               if (state.technologies.includes('forestry_1')) woodMult = round2(woodMult + 0.2);
+              if (state.buildings.lumberMills > 0) woodMult = round2(woodMult + state.buildings.lumberMills * 0.15);
+              if (state.buildings.blacksmiths > 0) woodMult = round2(woodMult + state.buildings.blacksmiths * 0.1);
               producedWood = round2(producedWood + income.wood * woodMult * efficiency);
 
               let stoneGoldMult = round2(1.0 * settings.productionMultiplier);
               if (state.technologies.includes('tools_1')) stoneGoldMult = round2(stoneGoldMult + 0.2);
+              if (state.buildings.mines > 0) stoneGoldMult = round2(stoneGoldMult + state.buildings.mines * 0.15);
+              if (state.buildings.blacksmiths > 0) stoneGoldMult = round2(stoneGoldMult + state.buildings.blacksmiths * 0.1);
               producedStone = round2(producedStone + income.stone * stoneGoldMult * efficiency);
               producedGold = round2(producedGold + income.gold * stoneGoldMult * efficiency);
 
-              const libraryBonus = state.buildings.libraries > 0 ? round2(state.buildings.libraries * 0.2 * 7) : 0; 
-              producedKnowledge = round2(producedKnowledge + (income.knowledge * efficiency) + (v.job === Job.Scholar && state.technologies.includes('scribing_1') ? (7 * efficiency) : 0) + (v.job === Job.Scholar ? (libraryBonus * efficiency) : 0));
+              const libraryBonus = state.buildings.libraries > 0 ? round2(state.buildings.libraries * 0.2 * 7) : 0;
+              const universityBonus = state.buildings.universities > 0 ? round2(state.buildings.universities * 0.3 * 7) : 0;
+              producedKnowledge = round2(producedKnowledge + (income.knowledge * efficiency) + (v.job === Job.Scholar && state.technologies.includes('scribing_1') ? (7 * efficiency) : 0) + (v.job === Job.Scholar ? ((libraryBonus + universityBonus) * efficiency) : 0));
           }
       });
 
@@ -408,7 +422,8 @@ function gameReducer(state: GameState, action: Action): GameState {
       const totalPop = state.population.length;
       const baseCoverage = state.technologies.includes('archery_1') ? GUARD_COVERAGE_UPGRADED : GUARD_COVERAGE_BASE;
       const wallBonus = state.buildings.walls * WALL_GUARD_BONUS;
-      const guardCoverage = baseCoverage + wallBonus;
+      const watchtowerBonus = state.buildings.watchtowers * 3;
+      const guardCoverage = baseCoverage + wallBonus + watchtowerBonus;
       const requiredGuards = Math.max(1, Math.ceil(totalPop / guardCoverage));
       const isSecure = guards >= requiredGuards;
       
@@ -450,7 +465,9 @@ function gameReducer(state: GameState, action: Action): GameState {
             rawFoodConsumption = round2(rawFoodConsumption + CONSUMPTION.food);
         }
       });
-      const totalConsumption = round2(rawFoodConsumption * settings.consumptionRate);
+      // Granary reduces food consumption by 5% per building
+      const granaryReduction = state.buildings.granaries > 0 ? (1 - state.buildings.granaries * 0.05) : 1;
+      const totalConsumption = round2(rawFoodConsumption * settings.consumptionRate * granaryReduction);
 
       const netFood = round2(state.resources.food + producedFood - totalConsumption - theftFood);
       const finalFood = round2(Math.max(0, netFood));
@@ -498,16 +515,18 @@ function gameReducer(state: GameState, action: Action): GameState {
             newV.hunger = 0;
             const healRate = state.technologies.includes('medicine_1') ? 5 : 2; // Higher heal rate per tick
             const tavernBonus = state.buildings.taverns > 0 ? 2 : 0;
-            // Cathedral now increases baseline happiness instead of direct bonus
+            const templeBonus = state.buildings.temples > 0 ? state.buildings.temples * 1 : 0;
+            // Cathedral and Temple now increase baseline happiness instead of direct bonus
             const cathedralBaselineBonus = state.buildings.cathedrals > 0 ? (state.buildings.cathedrals * 5) : 0;
-            newV.happinessBaseline = 50 + cathedralBaselineBonus; // Base 50 + cathedral bonus
+            const templeBaselineBonus = state.buildings.temples > 0 ? (state.buildings.temples * 2) : 0;
+            newV.happinessBaseline = 50 + cathedralBaselineBonus + templeBaselineBonus; // Base 50 + building bonuses
             
             if (!isFreezing) {
                 newV.health = Math.min(100, newV.health + healRate);
                 if (newV.hunger === 0) {
                   // Natural happiness regression towards baseline with bonuses
                   const baseIncrease = 2; // Base happiness recovery per week when fed
-                  const totalIncrease = baseIncrease + tavernBonus; // Taverns boost recovery
+                  const totalIncrease = baseIncrease + tavernBonus + templeBonus; // Taverns and temples boost recovery
                   const regressionRate = 1; // Natural regression rate per week
                   
                   if (newV.happiness < newV.happinessBaseline) {
@@ -639,7 +658,7 @@ const EndScreen: React.FC<{ state: GameState, onRestart: () => void }> = ({ stat
     score = round2(score + population.length * 100);
     score = round2(score + avgHappiness * 50);
     score = round2(score + technologies.length * 500);
-    score = round2(score + (buildings.houses + buildings.markets + buildings.walls + buildings.libraries + buildings.taverns + buildings.cathedrals) * 200);
+    score = round2(score + (buildings.houses + buildings.markets + buildings.walls + buildings.libraries + buildings.taverns + buildings.cathedrals + buildings.farms + buildings.lumberMills + buildings.mines + buildings.watchtowers + buildings.granaries + buildings.blacksmiths + buildings.temples + buildings.universities) * 200);
     score = round2(score + resources.gold * 1);
     score = round2(score - stats.totalDeaths * 50);
     score = round2(score - stats.starvationDays * 10);

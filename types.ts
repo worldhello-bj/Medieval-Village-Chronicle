@@ -58,6 +58,14 @@ export interface Buildings {
   libraries: number; // Increases scholar output
   taverns: number; // Increases happiness recovery
   cathedrals: number; // Increases passive happiness, massive stone sink
+  farms: number; // Increases farmer efficiency
+  lumberMills: number; // Increases woodcutter efficiency
+  mines: number; // Increases miner efficiency
+  watchtowers: number; // Increases guard coverage
+  granaries: number; // Reduces food waste
+  blacksmiths: number; // Boosts tool efficiency
+  temples: number; // Religious building for morale
+  universities: number; // Ultimate knowledge wonder
 }
 
 export interface Tech {
