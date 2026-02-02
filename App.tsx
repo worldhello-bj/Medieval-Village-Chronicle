@@ -1,6 +1,6 @@
 
 import React, { useReducer, useEffect, useState, useCallback } from 'react';
-import { GameState, Job, Season, Villager, Activity, GameStatus, Difficulty } from './types';
+import { GameState, Job, Season, Villager, Activity, GameStatus, Difficulty, FoodPriority } from './types';
 import { 
   JOB_INCOME, BUILDING_COSTS, HOUSE_CAPACITY_BASE, HOUSE_CAPACITY_UPGRADED, 
   CONSUMPTION, GUARD_COVERAGE_BASE, GUARD_COVERAGE_UPGRADED, TECH_TREE, 
@@ -20,6 +20,10 @@ import { VillagerModal } from './components/VillagerModal';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { GiTrophyCup, GiSkullCrossedBones, GiBabyFace, GiWheat, GiCrown } from 'react-icons/gi';
 
+// Happiness-based productivity constants
+const MIN_PRODUCTIVITY = 0.1; // 10% minimum productivity
+const PRODUCTIVITY_RANGE = 1.9; // Range from 10% to 200% (1.9 + 0.1 = 2.0)
+
 // --- State Management ---
 type Action = 
   | { type: 'START_GAME'; difficulty: Difficulty }
@@ -34,6 +38,7 @@ type Action =
   | { type: 'HOLD_FESTIVAL' }
   | { type: 'RESEARCH_TECH'; techId: string }
   | { type: 'TRADE_RESOURCE'; resource: 'food' | 'wood' | 'stone'; action: 'buy' | 'sell' }
+  | { type: 'SET_FOOD_PRIORITY'; priority: FoodPriority }
   | { type: 'RESTART_GAME' };
 
 const initialStats = {
@@ -52,7 +57,7 @@ const initialState: GameState = {
   tick: 0,
   season: Season.Spring,
   resources: DIFFICULTY_SETTINGS[Difficulty.Normal].startingResources,
-  buildings: { houses: 4, markets: 0, walls: 0, libraries: 0, taverns: 0, cathedrals: 0 },
+  buildings: { houses: 4, markets: 0, walls: 0, libraries: 0, taverns: 0, cathedrals: 0, farms: 0, lumberMills: 0, mines: 0, watchtowers: 0, granaries: 0, blacksmiths: 0, temples: 0, universities: 0 },
   technologies: [],
   population: [],
   logs: [],
@@ -60,7 +65,8 @@ const initialState: GameState = {
   gameSpeed: 500, // Slower tick speed because 1 tick is now 1 week (more impactful)
   history: [],
   stats: initialStats,
-  eventPool: [] // Initialize empty event pool
+  eventPool: [], // Initialize empty event pool
+  foodPriority: FoodPriority.Equal // Default to equal distribution
 };
 
 function gameReducer(state: GameState, action: Action): GameState {
@@ -217,6 +223,14 @@ function gameReducer(state: GameState, action: Action): GameState {
         if (building === 'Library') newBuildings.libraries += 1;
         if (building === 'Tavern') newBuildings.taverns += 1;
         if (building === 'Cathedral') newBuildings.cathedrals += 1;
+        if (building === 'Farm') newBuildings.farms += 1;
+        if (building === 'LumberMill') newBuildings.lumberMills += 1;
+        if (building === 'Mine') newBuildings.mines += 1;
+        if (building === 'Watchtower') newBuildings.watchtowers += 1;
+        if (building === 'Granary') newBuildings.granaries += 1;
+        if (building === 'Blacksmith') newBuildings.blacksmiths += 1;
+        if (building === 'Temple') newBuildings.temples += 1;
+        if (building === 'University') newBuildings.universities += 1;
         
         return {
           ...state,
@@ -311,6 +325,10 @@ function gameReducer(state: GameState, action: Action): GameState {
       return { ...state, population: newPop };
     }
 
+    case 'SET_FOOD_PRIORITY': {
+      return { ...state, foodPriority: action.priority };
+    }
+
     case 'TICK': {
       if (state.paused || state.status !== GameStatus.Playing) return state;
 
@@ -337,6 +355,7 @@ function gameReducer(state: GameState, action: Action): GameState {
       
       if (state.technologies.includes('farming_1')) foodMultiplier += 0.2;
       if (state.technologies.includes('irrigation_1')) foodMultiplier += 0.2;
+      if (state.buildings.farms > 0) foodMultiplier += state.buildings.farms * 0.15;
       
       // Apply Difficulty Production Multiplier
       foodMultiplier *= settings.productionMultiplier;
@@ -365,6 +384,12 @@ function gameReducer(state: GameState, action: Action): GameState {
               if (v.health < 50) efficiency -= 0.3;
               if (v.health < 20) efficiency -= 0.2; // Total -0.5 if dying
 
+              // Happiness-based Productivity Multiplier (Maps 0-100 happiness to 10%-200% productivity)
+              // Formula: productivity = MIN_PRODUCTIVITY + (happiness / 100) * PRODUCTIVITY_RANGE
+              // happiness=0 → 10%, happiness=50 → 105%, happiness=100 → 200%
+              const happinessProductivity = round2(MIN_PRODUCTIVITY + (v.happiness / 100) * PRODUCTIVITY_RANGE);
+              efficiency = round2(efficiency * happinessProductivity);
+
               // Minimum efficiency floor so production doesn't hit absolute zero unless dead
               efficiency = round2(Math.max(0.1, efficiency)); 
 
@@ -375,15 +400,20 @@ function gameReducer(state: GameState, action: Action): GameState {
               let woodMult = round2(1.0 * settings.productionMultiplier);
               if (state.technologies.includes('tools_1')) woodMult = round2(woodMult + 0.2);
               if (state.technologies.includes('forestry_1')) woodMult = round2(woodMult + 0.2);
+              if (state.buildings.lumberMills > 0) woodMult = round2(woodMult + state.buildings.lumberMills * 0.15);
+              if (state.buildings.blacksmiths > 0) woodMult = round2(woodMult + state.buildings.blacksmiths * 0.1);
               producedWood = round2(producedWood + income.wood * woodMult * efficiency);
 
               let stoneGoldMult = round2(1.0 * settings.productionMultiplier);
               if (state.technologies.includes('tools_1')) stoneGoldMult = round2(stoneGoldMult + 0.2);
+              if (state.buildings.mines > 0) stoneGoldMult = round2(stoneGoldMult + state.buildings.mines * 0.15);
+              if (state.buildings.blacksmiths > 0) stoneGoldMult = round2(stoneGoldMult + state.buildings.blacksmiths * 0.1);
               producedStone = round2(producedStone + income.stone * stoneGoldMult * efficiency);
               producedGold = round2(producedGold + income.gold * stoneGoldMult * efficiency);
 
-              const libraryBonus = state.buildings.libraries > 0 ? round2(state.buildings.libraries * 0.2 * 7) : 0; 
-              producedKnowledge = round2(producedKnowledge + (income.knowledge * efficiency) + (v.job === Job.Scholar && state.technologies.includes('scribing_1') ? (7 * efficiency) : 0) + (v.job === Job.Scholar ? (libraryBonus * efficiency) : 0));
+              const libraryBonus = state.buildings.libraries > 0 ? round2(state.buildings.libraries * 0.2 * 7) : 0;
+              const universityBonus = state.buildings.universities > 0 ? round2(state.buildings.universities * 0.3 * 7) : 0;
+              producedKnowledge = round2(producedKnowledge + (income.knowledge * efficiency) + (v.job === Job.Scholar && state.technologies.includes('scribing_1') ? (7 * efficiency) : 0) + (v.job === Job.Scholar ? ((libraryBonus + universityBonus) * efficiency) : 0));
           }
       });
 
@@ -398,7 +428,8 @@ function gameReducer(state: GameState, action: Action): GameState {
       const totalPop = state.population.length;
       const baseCoverage = state.technologies.includes('archery_1') ? GUARD_COVERAGE_UPGRADED : GUARD_COVERAGE_BASE;
       const wallBonus = state.buildings.walls * WALL_GUARD_BONUS;
-      const guardCoverage = baseCoverage + wallBonus;
+      const watchtowerBonus = state.buildings.watchtowers * 3;
+      const guardCoverage = baseCoverage + wallBonus + watchtowerBonus;
       const requiredGuards = Math.max(1, Math.ceil(totalPop / guardCoverage));
       const isSecure = guards >= requiredGuards;
       
@@ -432,19 +463,104 @@ function gameReducer(state: GameState, action: Action): GameState {
       }
 
       // Calculate total food consumption with lower rate for children
+      // Granary reduces food consumption by 5% per building
+      const granaryReduction = state.buildings.granaries > 0 ? (1 - state.buildings.granaries * 0.05) : 1;
+      
       let rawFoodConsumption = 0;
-      state.population.forEach(v => {
-        if (v.age < 16) {
-            rawFoodConsumption = round2(rawFoodConsumption + CONSUMPTION.childFood);
-        } else {
-            rawFoodConsumption = round2(rawFoodConsumption + CONSUMPTION.food);
+      const villagerFoodNeeds: { villager: Villager; need: number; priority: number }[] = [];
+      
+      state.population.forEach((v, index) => {
+        const foodNeed = v.age < 16 ? CONSUMPTION.childFood : CONSUMPTION.food;
+        const adjustedNeed = round2(foodNeed * settings.consumptionRate * granaryReduction);
+        rawFoodConsumption = round2(rawFoodConsumption + adjustedNeed);
+        
+        // Calculate priority based on food priority setting
+        let priority = 0;
+        switch (state.foodPriority) {
+          case FoodPriority.ChildrenFirst:
+            priority = v.age < 16 ? 2 : 1;
+            break;
+          case FoodPriority.WorkersFirst:
+            priority = (v.job !== Job.Unemployed && v.job !== Job.Child) ? 2 : 1;
+            break;
+          case FoodPriority.ElderlyLast:
+            priority = v.age >= 60 ? 0 : (v.age < 16 ? 2 : 1);
+            break;
+          case FoodPriority.Equal:
+          default:
+            priority = 1;
+            break;
         }
+        
+        villagerFoodNeeds.push({ villager: v, need: adjustedNeed, priority });
       });
-      const totalConsumption = round2(rawFoodConsumption * settings.consumptionRate);
+      
+      const totalConsumption = rawFoodConsumption;
 
-      const netFood = round2(state.resources.food + producedFood - totalConsumption - theftFood);
+      const availableFood = round2(state.resources.food + producedFood - theftFood);
+      const netFood = round2(availableFood - totalConsumption);
       const finalFood = round2(Math.max(0, netFood));
-      const isStarving = netFood < 0;
+      
+      // Calculate individual food allocation based on priority
+      const foodAllocation = new Map<string, number>(); // villager.id -> food received
+      
+      if (availableFood < totalConsumption) {
+        // Not enough food - distribute by priority
+        let remainingFood = availableFood;
+        
+        // Sort by priority (higher priority first)
+        const sortedNeeds = [...villagerFoodNeeds].sort((a, b) => b.priority - a.priority);
+        
+        // First pass: Give food to high priority villagers
+        const highPriority = sortedNeeds.filter(vn => vn.priority === 2);
+        const midPriority = sortedNeeds.filter(vn => vn.priority === 1);
+        const lowPriority = sortedNeeds.filter(vn => vn.priority === 0);
+        
+        // Allocate to high priority first
+        for (const vn of highPriority) {
+          if (remainingFood >= vn.need) {
+            foodAllocation.set(vn.villager.id, vn.need);
+            remainingFood = round2(remainingFood - vn.need);
+          } else {
+            foodAllocation.set(vn.villager.id, remainingFood);
+            remainingFood = 0;
+            break;
+          }
+        }
+        
+        // Then mid priority
+        if (remainingFood > 0) {
+          for (const vn of midPriority) {
+            if (remainingFood >= vn.need) {
+              foodAllocation.set(vn.villager.id, vn.need);
+              remainingFood = round2(remainingFood - vn.need);
+            } else {
+              foodAllocation.set(vn.villager.id, remainingFood);
+              remainingFood = 0;
+              break;
+            }
+          }
+        }
+        
+        // Finally low priority
+        if (remainingFood > 0) {
+          for (const vn of lowPriority) {
+            if (remainingFood >= vn.need) {
+              foodAllocation.set(vn.villager.id, vn.need);
+              remainingFood = round2(remainingFood - vn.need);
+            } else {
+              foodAllocation.set(vn.villager.id, remainingFood);
+              remainingFood = 0;
+              break;
+            }
+          }
+        }
+      } else {
+        // Enough food for everyone
+        villagerFoodNeeds.forEach(vn => {
+          foodAllocation.set(vn.villager.id, vn.need);
+        });
+      }
 
       if (currentSeason !== state.season) {
           newLogs.push({ id: Math.random().toString(), tick: state.tick, message: `季节更替：${currentSeason}`, type: 'info' });
@@ -470,7 +586,7 @@ function gameReducer(state: GameState, action: Action): GameState {
         // Stats (Apply weekly effects)
         if (isFreezing) {
             newV.health -= 5; // Harsher per tick since it's a week
-            newV.happiness -= 5;
+            newV.happiness = Math.max(0, newV.happiness - 5);
             newV.currentActivity = Activity.Freezing;
         } else if (newV.job === Job.Unemployed || newV.job === Job.Child) {
             newV.currentActivity = Activity.Idle;
@@ -480,19 +596,54 @@ function gameReducer(state: GameState, action: Action): GameState {
 
         if (!isSecure && totalPop > 10) newV.happiness = Math.max(0, newV.happiness - 1);
 
-        if (isStarving) {
-            newV.hunger = Math.min(100, newV.hunger + 20); // More hunger per tick
-            newV.happiness -= 10;
-            newV.health -= 5;
+        // Calculate food shortage for this villager
+        const foodNeed = v.age < 16 ? CONSUMPTION.childFood : CONSUMPTION.food;
+        const adjustedNeed = round2(foodNeed * settings.consumptionRate * granaryReduction);
+        const foodReceived = foodAllocation.get(v.id) || 0;
+        const foodShortageRatio = round2(Math.max(0, 1 - (foodReceived / adjustedNeed)));
+        
+        if (foodShortageRatio > 0) {
+            // Proportional hunger increase based on shortage
+            const hungerIncrease = round2(foodShortageRatio * 20); // Max 20 if completely unfed
+            newV.hunger = Math.min(100, newV.hunger + hungerIncrease);
+            
+            // Proportional happiness and health penalties
+            const happinessPenalty = round2(foodShortageRatio * 10); // Max 10 if completely unfed
+            const healthPenalty = round2(foodShortageRatio * 5); // Max 5 if completely unfed
+            
+            newV.happiness = Math.max(0, newV.happiness - happinessPenalty);
+            newV.health = Math.max(0, newV.health - healthPenalty);
         } else {
-            newV.hunger = 0;
+            // Well fed - reduce hunger and allow healing/happiness recovery
+            newV.hunger = Math.max(0, newV.hunger - 10); // Recover from hunger when fed
+            
             const healRate = state.technologies.includes('medicine_1') ? 5 : 2; // Higher heal rate per tick
             const tavernBonus = state.buildings.taverns > 0 ? 2 : 0;
-            const cathedralBonus = state.buildings.cathedrals > 0 ? (state.buildings.cathedrals * 1) : 0; 
+            const templeBonus = state.buildings.temples > 0 ? state.buildings.temples * 1 : 0;
+            // Cathedral and Temple now increase baseline happiness instead of direct bonus
+            const cathedralBaselineBonus = state.buildings.cathedrals > 0 ? (state.buildings.cathedrals * 5) : 0;
+            const templeBaselineBonus = state.buildings.temples > 0 ? (state.buildings.temples * 2) : 0;
+            newV.happinessBaseline = 50 + cathedralBaselineBonus + templeBaselineBonus; // Base 50 + building bonuses
             
             if (!isFreezing) {
                 newV.health = Math.min(100, newV.health + healRate);
-                if (newV.hunger === 0) newV.happiness = Math.min(100, newV.happiness + 2 + tavernBonus + cathedralBonus);
+                if (newV.hunger === 0) {
+                  // Natural happiness regression towards baseline with bonuses
+                  const baseIncrease = 2; // Base happiness recovery per week when fed
+                  const totalIncrease = baseIncrease + tavernBonus + templeBonus; // Taverns and temples boost recovery
+                  const regressionRate = 1; // Natural regression rate per week
+                  
+                  if (newV.happiness < newV.happinessBaseline) {
+                    // Below baseline: increase happiness, but don't overshoot the baseline
+                    const delta = newV.happinessBaseline - newV.happiness;
+                    newV.happiness = Math.min(100, newV.happiness + Math.min(delta, totalIncrease));
+                  } else if (newV.happiness > newV.happinessBaseline) {
+                    // Above baseline: gradually decrease towards baseline
+                    newV.happiness = Math.max(newV.happinessBaseline, newV.happiness - regressionRate);
+                  }
+                  // Ensure happiness stays within 0-100 range
+                  newV.happiness = Math.max(0, Math.min(100, newV.happiness));
+                }
             }
         }
         return newV;
@@ -535,6 +686,9 @@ function gameReducer(state: GameState, action: Action): GameState {
       // --- Update History & Stats ---
       const newHistory = [...state.history, { tick: state.tick, pop: survivors.length, food: round2(finalFood) }].slice(-520); // Keep 10 years of weekly history
 
+      // Count starvation - if anyone has food shortage
+      const isAnyoneStarving = availableFood < totalConsumption;
+      
       const newStats = {
           ...state.stats,
           totalBirths: state.stats.totalBirths + newBabies.length,
@@ -542,7 +696,7 @@ function gameReducer(state: GameState, action: Action): GameState {
           peakPopulation: Math.max(state.stats.peakPopulation, survivors.length),
           totalFoodProduced: round2(state.stats.totalFoodProduced + producedFood),
           totalGoldMined: round2(state.stats.totalGoldMined + producedGold),
-          starvationDays: isStarving ? state.stats.starvationDays + 1 : state.stats.starvationDays
+          starvationDays: isAnyoneStarving ? state.stats.starvationDays + 1 : state.stats.starvationDays
       };
 
       if (survivors.length === 0) {
@@ -611,7 +765,7 @@ const EndScreen: React.FC<{ state: GameState, onRestart: () => void }> = ({ stat
     score = round2(score + population.length * 100);
     score = round2(score + avgHappiness * 50);
     score = round2(score + technologies.length * 500);
-    score = round2(score + (buildings.houses + buildings.markets + buildings.walls + buildings.libraries + buildings.taverns + buildings.cathedrals) * 200);
+    score = round2(score + (buildings.houses + buildings.markets + buildings.walls + buildings.libraries + buildings.taverns + buildings.cathedrals + buildings.farms + buildings.lumberMills + buildings.mines + buildings.watchtowers + buildings.granaries + buildings.blacksmiths + buildings.temples + buildings.universities) * 200);
     score = round2(score + resources.gold * 1);
     score = round2(score - stats.totalDeaths * 50);
     score = round2(score - stats.starvationDays * 10);
@@ -787,6 +941,10 @@ export default function App() {
   const handleTrade = (resource: 'food' | 'wood' | 'stone', action: 'buy' | 'sell') => {
       dispatch({ type: 'TRADE_RESOURCE', resource, action });
   }
+  
+  const handleSetFoodPriority = (priority: FoodPriority) => {
+      dispatch({ type: 'SET_FOOD_PRIORITY', priority });
+  }
 
   const year = Math.floor(state.tick / WEEKS_PER_YEAR) + 1;
   const weekOfYear = state.tick % WEEKS_PER_YEAR;
@@ -867,6 +1025,7 @@ export default function App() {
              onFestival={handleFestival}
              onResearch={handleResearch}
              onTrade={handleTrade}
+             onSetFoodPriority={handleSetFoodPriority}
              onTogglePause={() => dispatch({ type: 'TOGGLE_PAUSE' })} 
            />
         </div>

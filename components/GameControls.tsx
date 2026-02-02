@@ -1,8 +1,8 @@
 
 import React, { useState } from 'react';
-import { GameState, Job } from '../types';
+import { GameState, Job, FoodPriority } from '../types';
 import { BUILDING_COSTS, TECH_TREE, TRADE_RATES, TRADE_AMOUNT } from '../constants';
-import { GiHelp, GiHammerDrop, GiPartyFlags, GiHouse, GiScrollQuill, GiCheckMark, GiStoneWall, GiBookshelf, GiBeerStein, GiTrade, GiCoins, GiHolySymbol } from 'react-icons/gi';
+import { GiHelp, GiHammerDrop, GiPartyFlags, GiHouse, GiScrollQuill, GiCheckMark, GiStoneWall, GiBookshelf, GiBeerStein, GiTrade, GiCoins, GiHolySymbol, GiFarmTractor, GiWoodPile, GiMineTruck, GiWatchtower, GiGrainBundle, GiAnvil, GiTempleGate, GiAncientColumns } from 'react-icons/gi';
 
 interface GameControlsProps {
   state: GameState;
@@ -11,10 +11,11 @@ interface GameControlsProps {
   onFestival: () => void;
   onResearch: (techId: string) => void;
   onTrade: (resource: 'food' | 'wood' | 'stone', action: 'buy' | 'sell') => void;
+  onSetFoodPriority: (priority: FoodPriority) => void;
   onTogglePause: () => void;
 }
 
-export const GameControls: React.FC<GameControlsProps> = ({ state, onAssignJob, onConstruct, onFestival, onResearch, onTrade, onTogglePause }) => {
+export const GameControls: React.FC<GameControlsProps> = ({ state, onAssignJob, onConstruct, onFestival, onResearch, onTrade, onSetFoodPriority, onTogglePause }) => {
   const [showHelp, setShowHelp] = useState(false);
   const [tab, setTab] = useState<'jobs' | 'build' | 'tech' | 'trade'>('jobs');
 
@@ -93,10 +94,11 @@ export const GameControls: React.FC<GameControlsProps> = ({ state, onAssignJob, 
                   <button onClick={() => setShowHelp(false)} className="text-stone-400">✕</button>
               </div>
               <ul className="space-y-3 text-stone-300 list-disc pl-4">
+                  <li><strong className="text-stone-100">幸福度系统：</strong> 幸福度影响产能效率（10%-200%）。幸福度会自然回归到基准值（默认50），只有<span className="text-yellow-300">奇观建筑</span>（大教堂）可提升基准值。</li>
                   <li><strong className="text-stone-100">冬季生存：</strong> <span className="text-blue-300">冬季</span>每天每人消耗1单位木材。如果没有木材，村民会冻死。</li>
                   <li><strong className="text-stone-100">石料紧缺：</strong> 石料现在非常稀缺。请通过<span className="text-stone-400">集市</span>购买或积攒。</li>
                   <li><strong className="text-stone-100">集市交易：</strong> 建造集市后可以买卖资源。</li>
-                  <li><strong className="text-stone-100">大教堂：</strong> 终极建筑，消耗大量石料，但能极大提升幸福度。</li>
+                  <li><strong className="text-stone-100">大教堂：</strong> 终极建筑，消耗大量石料，能提升幸福度基准值，使村民长期保持高幸福度。</li>
               </ul>
           </div>
       )}
@@ -107,6 +109,27 @@ export const GameControls: React.FC<GameControlsProps> = ({ state, onAssignJob, 
             <div className="mb-4 bg-stone-900/50 p-3 rounded border border-stone-700">
                 <div className="text-stone-400 text-sm">可用劳动力</div>
                 <div className="text-2xl text-white font-mono">{unemployedCount}</div>
+            </div>
+            
+            {/* Food Priority Setting */}
+            <div className="mb-4 bg-stone-900/50 p-3 rounded border border-amber-900/30">
+                <div className="text-amber-400 text-sm mb-2 font-bold">食物分配优先级</div>
+                <div className="text-stone-500 text-xs mb-2">食物不足时优先喂养：</div>
+                <div className="grid grid-cols-2 gap-2">
+                    {Object.values(FoodPriority).map(priority => (
+                        <button
+                            key={priority}
+                            onClick={() => onSetFoodPriority(priority)}
+                            className={`px-2 py-1 text-xs rounded ${
+                                state.foodPriority === priority 
+                                    ? 'bg-amber-700 text-white font-bold' 
+                                    : 'bg-stone-700 text-stone-400 hover:bg-stone-600'
+                            }`}
+                        >
+                            {priority}
+                        </button>
+                    ))}
+                </div>
             </div>
 
             <div className="space-y-3 overflow-y-auto flex-1 custom-scrollbar pr-2">
@@ -223,12 +246,140 @@ export const GameControls: React.FC<GameControlsProps> = ({ state, onAssignJob, 
                       <div className="font-bold text-purple-300 flex items-center gap-2"><GiHolySymbol /> 大教堂</div>
                       <span className="text-xs text-stone-400">拥有: {state.buildings.cathedrals}</span>
                   </div>
-                  <div className="text-xs text-stone-400 mb-2">宏伟的奇观。大幅提升幸福度。</div>
+                  <div className="text-xs text-stone-400 mb-2">宏伟的奇观。提升幸福度基准值+5，使村民长期保持高幸福度。</div>
                   <div className="text-xs text-amber-500 mb-3">石: {BUILDING_COSTS.Cathedral.stone} | 金: {BUILDING_COSTS.Cathedral.gold}</div>
                   <button 
                     onClick={() => onConstruct('Cathedral')}
                     disabled={!canAfford('Cathedral')}
                     className="w-full py-2 bg-purple-900 hover:bg-purple-800 disabled:opacity-30 disabled:hover:bg-stone-600 text-white rounded font-bold text-sm transition-colors"
+                  >
+                      建造奇观
+                  </button>
+              </div>
+
+              <div className="bg-stone-700/30 p-3 rounded border border-stone-600 border-l-4 border-l-green-500">
+                  <div className="flex justify-between items-start mb-2">
+                      <div className="font-bold text-green-300 flex items-center gap-2"><GiFarmTractor /> 农场</div>
+                      <span className="text-xs text-stone-400">拥有: {state.buildings.farms}</span>
+                  </div>
+                  <div className="text-xs text-stone-400 mb-2">改良农业设施。农夫产量 +15%/座。</div>
+                  <div className="text-xs text-amber-500 mb-3">木: {BUILDING_COSTS.Farm.wood} | 石: {BUILDING_COSTS.Farm.stone} | 金: {BUILDING_COSTS.Farm.gold}</div>
+                  <button 
+                    onClick={() => onConstruct('Farm')}
+                    disabled={!canAfford('Farm')}
+                    className="w-full py-2 bg-stone-600 hover:bg-stone-500 disabled:opacity-30 disabled:hover:bg-stone-600 text-white rounded font-bold text-sm transition-colors"
+                  >
+                      建造
+                  </button>
+              </div>
+
+              <div className="bg-stone-700/30 p-3 rounded border border-stone-600 border-l-4 border-l-amber-600">
+                  <div className="flex justify-between items-start mb-2">
+                      <div className="font-bold text-amber-500 flex items-center gap-2"><GiWoodPile /> 伐木场</div>
+                      <span className="text-xs text-stone-400">拥有: {state.buildings.lumberMills}</span>
+                  </div>
+                  <div className="text-xs text-stone-400 mb-2">专业伐木设施。伐木工产量 +15%/座。</div>
+                  <div className="text-xs text-amber-500 mb-3">木: {BUILDING_COSTS.LumberMill.wood} | 石: {BUILDING_COSTS.LumberMill.stone} | 金: {BUILDING_COSTS.LumberMill.gold}</div>
+                  <button 
+                    onClick={() => onConstruct('LumberMill')}
+                    disabled={!canAfford('LumberMill')}
+                    className="w-full py-2 bg-stone-600 hover:bg-stone-500 disabled:opacity-30 disabled:hover:bg-stone-600 text-white rounded font-bold text-sm transition-colors"
+                  >
+                      建造
+                  </button>
+              </div>
+
+              <div className="bg-stone-700/30 p-3 rounded border border-stone-600 border-l-4 border-l-gray-500">
+                  <div className="flex justify-between items-start mb-2">
+                      <div className="font-bold text-gray-300 flex items-center gap-2"><GiMineTruck /> 矿场</div>
+                      <span className="text-xs text-stone-400">拥有: {state.buildings.mines}</span>
+                  </div>
+                  <div className="text-xs text-stone-400 mb-2">专业采矿设施。矿工产量 +15%/座。</div>
+                  <div className="text-xs text-amber-500 mb-3">木: {BUILDING_COSTS.Mine.wood} | 石: {BUILDING_COSTS.Mine.stone} | 金: {BUILDING_COSTS.Mine.gold}</div>
+                  <button 
+                    onClick={() => onConstruct('Mine')}
+                    disabled={!canAfford('Mine')}
+                    className="w-full py-2 bg-stone-600 hover:bg-stone-500 disabled:opacity-30 disabled:hover:bg-stone-600 text-white rounded font-bold text-sm transition-colors"
+                  >
+                      建造
+                  </button>
+              </div>
+
+              <div className="bg-stone-700/30 p-3 rounded border border-stone-600 border-l-4 border-l-red-600">
+                  <div className="flex justify-between items-start mb-2">
+                      <div className="font-bold text-red-400 flex items-center gap-2"><GiWatchtower /> 岗哨</div>
+                      <span className="text-xs text-stone-400">拥有: {state.buildings.watchtowers}</span>
+                  </div>
+                  <div className="text-xs text-stone-400 mb-2">提升治安。守卫覆盖人数 +3/座。</div>
+                  <div className="text-xs text-amber-500 mb-3">木: {BUILDING_COSTS.Watchtower.wood} | 石: {BUILDING_COSTS.Watchtower.stone} | 金: {BUILDING_COSTS.Watchtower.gold}</div>
+                  <button 
+                    onClick={() => onConstruct('Watchtower')}
+                    disabled={!canAfford('Watchtower')}
+                    className="w-full py-2 bg-stone-600 hover:bg-stone-500 disabled:opacity-30 disabled:hover:bg-stone-600 text-white rounded font-bold text-sm transition-colors"
+                  >
+                      建造
+                  </button>
+              </div>
+
+              <div className="bg-stone-700/30 p-3 rounded border border-stone-600 border-l-4 border-l-yellow-600">
+                  <div className="flex justify-between items-start mb-2">
+                      <div className="font-bold text-yellow-400 flex items-center gap-2"><GiGrainBundle /> 粮仓</div>
+                      <span className="text-xs text-stone-400">拥有: {state.buildings.granaries}</span>
+                  </div>
+                  <div className="text-xs text-stone-400 mb-2">减少浪费。降低食物消耗 5%/座。</div>
+                  <div className="text-xs text-amber-500 mb-3">木: {BUILDING_COSTS.Granary.wood} | 石: {BUILDING_COSTS.Granary.stone} | 金: {BUILDING_COSTS.Granary.gold}</div>
+                  <button 
+                    onClick={() => onConstruct('Granary')}
+                    disabled={!canAfford('Granary')}
+                    className="w-full py-2 bg-stone-600 hover:bg-stone-500 disabled:opacity-30 disabled:hover:bg-stone-600 text-white rounded font-bold text-sm transition-colors"
+                  >
+                      建造
+                  </button>
+              </div>
+
+              <div className="bg-stone-700/30 p-3 rounded border border-stone-600 border-l-4 border-l-orange-600">
+                  <div className="flex justify-between items-start mb-2">
+                      <div className="font-bold text-orange-400 flex items-center gap-2"><GiAnvil /> 锻造坊</div>
+                      <span className="text-xs text-stone-400">拥有: {state.buildings.blacksmiths}</span>
+                  </div>
+                  <div className="text-xs text-stone-400 mb-2">打造精良工具。伐木工和矿工产量 +10%/座。</div>
+                  <div className="text-xs text-amber-500 mb-3">木: {BUILDING_COSTS.Blacksmith.wood} | 石: {BUILDING_COSTS.Blacksmith.stone} | 金: {BUILDING_COSTS.Blacksmith.gold}</div>
+                  <button 
+                    onClick={() => onConstruct('Blacksmith')}
+                    disabled={!canAfford('Blacksmith')}
+                    className="w-full py-2 bg-stone-600 hover:bg-stone-500 disabled:opacity-30 disabled:hover:bg-stone-600 text-white rounded font-bold text-sm transition-colors"
+                  >
+                      建造
+                  </button>
+              </div>
+
+              <div className="bg-stone-700/30 p-3 rounded border border-stone-600 border-l-4 border-l-cyan-500">
+                  <div className="flex justify-between items-start mb-2">
+                      <div className="font-bold text-cyan-300 flex items-center gap-2"><GiTempleGate /> 神殿</div>
+                      <span className="text-xs text-stone-400">拥有: {state.buildings.temples}</span>
+                  </div>
+                  <div className="text-xs text-stone-400 mb-2">虔诚信仰。提升幸福度基准值+2/座，恢复速度+1/座。</div>
+                  <div className="text-xs text-amber-500 mb-3">木: {BUILDING_COSTS.Temple.wood} | 石: {BUILDING_COSTS.Temple.stone} | 金: {BUILDING_COSTS.Temple.gold}</div>
+                  <button 
+                    onClick={() => onConstruct('Temple')}
+                    disabled={!canAfford('Temple')}
+                    className="w-full py-2 bg-stone-600 hover:bg-stone-500 disabled:opacity-30 disabled:hover:bg-stone-600 text-white rounded font-bold text-sm transition-colors"
+                  >
+                      建造
+                  </button>
+              </div>
+
+              <div className="bg-stone-700/30 p-3 rounded border border-stone-600 border-l-4 border-l-indigo-500">
+                  <div className="flex justify-between items-start mb-2">
+                      <div className="font-bold text-indigo-300 flex items-center gap-2"><GiAncientColumns /> 大学</div>
+                      <span className="text-xs text-stone-400">拥有: {state.buildings.universities}</span>
+                  </div>
+                  <div className="text-xs text-stone-400 mb-2">知识奇观。学者产出极大提升 +30%/座。</div>
+                  <div className="text-xs text-amber-500 mb-3">木: {BUILDING_COSTS.University.wood} | 石: {BUILDING_COSTS.University.stone} | 金: {BUILDING_COSTS.University.gold}</div>
+                  <button 
+                    onClick={() => onConstruct('University')}
+                    disabled={!canAfford('University')}
+                    className="w-full py-2 bg-indigo-900 hover:bg-indigo-800 disabled:opacity-30 disabled:hover:bg-stone-600 text-white rounded font-bold text-sm transition-colors"
                   >
                       建造奇观
                   </button>

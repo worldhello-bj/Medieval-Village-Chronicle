@@ -37,12 +37,20 @@ export enum GameStatus {
   Finished = 'FINISHED'
 }
 
+export enum FoodPriority {
+  Equal = '平等分配',
+  ChildrenFirst = '儿童优先',
+  WorkersFirst = '工人优先',
+  ElderlyLast = '老人最后'
+}
+
 export interface Villager {
   id: string;
   name: string;
   age: number;
   job: Job;
   happiness: number; // 0-100
+  happinessBaseline: number; // 0-100, natural regression target (default 50, increased by wonders)
   health: number; // 0-100
   hunger: number; // 0-100 (100 is starving)
   energy: number; // 0-100 (Abstracted daily energy/stamina)
@@ -57,6 +65,14 @@ export interface Buildings {
   libraries: number; // Increases scholar output
   taverns: number; // Increases happiness recovery
   cathedrals: number; // Increases passive happiness, massive stone sink
+  farms: number; // Increases farmer efficiency
+  lumberMills: number; // Increases woodcutter efficiency
+  mines: number; // Increases miner efficiency
+  watchtowers: number; // Increases guard coverage
+  granaries: number; // Reduces food waste
+  blacksmiths: number; // Boosts tool efficiency
+  temples: number; // Religious building for morale
+  universities: number; // Ultimate knowledge wonder
 }
 
 export interface Tech {
@@ -109,6 +125,7 @@ export interface GameState {
   history: { tick: number; pop: number; food: number }[];
   stats: GameStats;
   eventPool: GameEvent[]; // Pool of available events (mixed AI and fixed)
+  foodPriority: FoodPriority; // Food distribution priority setting
 }
 
 export interface LogEntry {

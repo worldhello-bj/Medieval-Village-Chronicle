@@ -33,6 +33,7 @@ export const generateVillager = (ageOverride?: number): Villager => {
     age,
     job,
     happiness: 70 + Math.floor(Math.random() * 30),
+    happinessBaseline: 50, // Default natural regression value
     health: 80 + Math.floor(Math.random() * 20),
     hunger: Math.floor(Math.random() * 30),
     energy: 50 + Math.floor(Math.random() * 50),
