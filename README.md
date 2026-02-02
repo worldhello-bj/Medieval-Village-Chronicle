@@ -8,13 +8,56 @@ This contains everything you need to run your app locally.
 
 View your app in AI Studio: https://ai.studio/apps/drive/1tp1aU7ub4lMiDZ1SSsxVophCI4ITuEZV
 
+## Architecture
+
+This application consists of two parts:
+
+1. **Frontend (React + Vite)**: Game UI and logic
+2. **Backend API (Node.js + Express)**: AI event and bio generation using Gemini API
+
+The backend API isolates AI API calls from the frontend, providing better security and control.
+
 ## Run Locally
 
-**Prerequisites:**  Node.js
+**Prerequisites:** Node.js
 
+### Quick Start
 
 1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+   ```bash
+   npm install
+   ```
+
+2. (Optional) Set up the backend API for AI features:
+   - Create `server/.env.local` with your Gemini API key:
+     ```
+     GEMINI_API_KEY=your_api_key_here
+     ```
+   - Get your API key from: https://ai.google.dev/
+
+3. Run the app (starts both frontend and backend):
+   ```bash
+   npm run dev
+   ```
+
+The app will run at http://localhost:3000
+
+**Note**: If the backend API is not configured, the app will fall back to using predefined event and bio templates.
+
+### Running Components Separately
+
+- **Frontend only**: `npm run dev:frontend` (http://localhost:3000)
+- **Backend only**: `npm run server` (http://localhost:3001)
+
+## Environment Variables
+
+### Frontend (.env.local)
+```
+VITE_API_URL=http://localhost:3001
+```
+
+### Backend (server/.env.local)
+```
+GEMINI_API_KEY=your_gemini_api_key_here
+```
+

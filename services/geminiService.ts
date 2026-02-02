@@ -1,7 +1,10 @@
 import { GameState, Season } from "../types";
 import { NAMES_MALE } from "../constants";
 
-// Event templates for different scenarios
+// Backend API configuration
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
+// Event templates for different scenarios (used as fallback)
 interface EventTemplate {
   message: string;
   type: 'info' | 'warning' | 'danger' | 'success';
@@ -50,28 +53,23 @@ const SEVERE_NEGATIVE_EVENTS: EventTemplate[] = [
   { message: "土匪洗劫了村庄。", type: 'danger', deltaFood: -60, deltaWood: -30, deltaGold: -50, deltaPop: -1 },
 ];
 
-// Used for generating random events affecting the village
-export const generateGameEvent = async (state: GameState) => {
+// Fallback function using templates (used when backend is unavailable)
+const generateEventFallback = (state: GameState): EventTemplate | null => {
   try {
-    // Calculate average happiness
     const avgHappiness = Math.floor(state.population.reduce((acc, v) => acc + v.happiness, 0) / state.population.length) || 0;
     const popSize = state.population.length;
-    const foodRatio = state.resources.food / Math.max(1, popSize * 50); // Rough food per capita
+    const foodRatio = state.resources.food / Math.max(1, popSize * 50);
     
-    // Select event pool based on village state
     let eventPool: EventTemplate[] = [];
     
-    // If happiness is low or food is scarce, more negative events
     if (avgHappiness < 40 || foodRatio < 0.5) {
       eventPool = [...SEVERE_NEGATIVE_EVENTS, ...NEGATIVE_EVENTS, ...NEUTRAL_EVENTS];
     } else if (avgHappiness < 60 || foodRatio < 1.0) {
       eventPool = [...NEGATIVE_EVENTS, ...NEUTRAL_EVENTS, ...POSITIVE_EVENTS];
     } else {
-      // Good times = more positive events (doubled weight for positive events)
       eventPool = [...POSITIVE_EVENTS, ...POSITIVE_EVENTS, ...NEUTRAL_EVENTS, ...NEGATIVE_EVENTS];
     }
     
-    // Season-specific events
     if (state.season === Season.Winter) {
       eventPool.push({ message: "寒冷的冬日考验着村民的意志。", type: 'warning', deltaFood: -20, deltaWood: -40, deltaGold: 0, deltaPop: 0 });
     } else if (state.season === Season.Spring) {
@@ -82,13 +80,38 @@ export const generateGameEvent = async (state: GameState) => {
       eventPool.push({ message: "秋收时节，粮仓充盈。", type: 'success', deltaFood: 80, deltaWood: 0, deltaGold: 0, deltaPop: 0 });
     }
     
-    // Randomly select an event
-    const event = eventPool[Math.floor(Math.random() * eventPool.length)];
-    
-    return event;
-  } catch (error: any) {
-    console.error("Event Gen Error:", error);
+    return eventPool[Math.floor(Math.random() * eventPool.length)];
+  } catch (error) {
+    console.error("Fallback event gen error:", error);
     return null;
+  }
+};
+
+// Used for generating random events affecting the village
+export const generateGameEvent = async (state: GameState) => {
+  try {
+    // Try to call backend API first
+    const response = await fetch(`${API_BASE_URL}/api/generate-event`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ state }),
+    });
+
+    if (response.ok) {
+      const eventData = await response.json();
+      console.log('AI Event generated via backend API');
+      return eventData;
+    }
+
+    // If backend API fails, fall back to templates
+    console.warn('Backend API unavailable, using fallback templates');
+    return generateEventFallback(state);
+
+  } catch (error: any) {
+    console.warn('Backend API error, using fallback templates:', error.message);
+    return generateEventFallback(state);
   }
 };
 
@@ -145,26 +168,48 @@ const BIO_TEMPLATES = {
   ]
 };
 
-// Used for generating a backstory for a specific villager
-export const generateVillagerBio = async (name: string, age: number, job: string, season: string) => {
+// Fallback function using templates (used when backend is unavailable)
+const generateBioFallback = (name: string, job: string): string => {
   try {
-    // Get templates for the job type
     const templates = BIO_TEMPLATES[job as keyof typeof BIO_TEMPLATES] || BIO_TEMPLATES['无业游民'];
-    
-    // Randomly select a template
     const template = templates[Math.floor(Math.random() * templates.length)];
-    
-    // Replace placeholders
     let bio = template.replace(/{name}/g, name);
     
-    // Determine gender pronoun based on name (uses shared male names constant)
     const firstName = name.split('·')[0];
     const isMale = NAMES_MALE.includes(firstName);
     bio = bio.replace(/{他\/她}/g, isMale ? '他' : '她');
     
     return bio;
-  } catch (error: any) {
-    console.warn("Bio Gen Error (using fallback):", error);
+  } catch (error) {
+    console.error("Fallback bio gen error:", error);
     return "这个人的过去像迷雾一样不可知。";
+  }
+};
+
+// Used for generating a backstory for a specific villager
+export const generateVillagerBio = async (name: string, age: number, job: string, season: string) => {
+  try {
+    // Try to call backend API first
+    const response = await fetch(`${API_BASE_URL}/api/generate-bio`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ name, age, job, season }),
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      console.log('AI Bio generated via backend API');
+      return data.bio;
+    }
+
+    // If backend API fails, fall back to templates
+    console.warn('Backend API unavailable, using fallback templates');
+    return generateBioFallback(name, job);
+
+  } catch (error: any) {
+    console.warn('Backend API error, using fallback templates:', error.message);
+    return generateBioFallback(name, job);
   }
 };
