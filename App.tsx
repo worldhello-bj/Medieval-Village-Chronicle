@@ -735,7 +735,7 @@ function gameReducer(state: GameState, action: Action): GameState {
 
         // Calculate food shortage for this villager
         const foodNeed = v.age < 16 ? CONSUMPTION.childFood : CONSUMPTION.food;
-        const adjustedNeed = round2(foodNeed * settings.consumptionRate * granaryReduction);
+        const adjustedNeed = round2(foodNeed * settings.consumptionRate * granaryReduction * preservationReduction);
         const foodReceived = foodAllocation.get(v.id) || 0;
         const foodShortageRatio = round2(Math.max(0, 1 - (foodReceived / adjustedNeed)));
         
