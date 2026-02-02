@@ -20,6 +20,10 @@ import { VillagerModal } from './components/VillagerModal';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { GiTrophyCup, GiSkullCrossedBones, GiBabyFace, GiWheat, GiCrown } from 'react-icons/gi';
 
+// Happiness-based productivity constants
+const MIN_PRODUCTIVITY = 0.1; // 10% minimum productivity
+const PRODUCTIVITY_RANGE = 1.9; // Range from 10% to 200% (1.9 + 0.1 = 2.0)
+
 // --- State Management ---
 type Action = 
   | { type: 'START_GAME'; difficulty: Difficulty }
@@ -366,9 +370,9 @@ function gameReducer(state: GameState, action: Action): GameState {
               if (v.health < 20) efficiency -= 0.2; // Total -0.5 if dying
 
               // Happiness-based Productivity Multiplier (Maps 0-100 happiness to 10%-200% productivity)
-              // Formula: productivity = 0.1 + (happiness / 100) * 1.9
+              // Formula: productivity = MIN_PRODUCTIVITY + (happiness / 100) * PRODUCTIVITY_RANGE
               // happiness=0 → 10%, happiness=50 → 105%, happiness=100 → 200%
-              const happinessProductivity = round2(0.1 + (v.happiness / 100) * 1.9);
+              const happinessProductivity = round2(MIN_PRODUCTIVITY + (v.happiness / 100) * PRODUCTIVITY_RANGE);
               efficiency = round2(efficiency * happinessProductivity);
 
               // Minimum efficiency floor so production doesn't hit absolute zero unless dead
@@ -501,15 +505,21 @@ function gameReducer(state: GameState, action: Action): GameState {
             if (!isFreezing) {
                 newV.health = Math.min(100, newV.health + healRate);
                 if (newV.hunger === 0) {
-                  // Natural happiness regression towards baseline
-                  const regressionRate = 1; // How fast happiness moves towards baseline per week
+                  // Natural happiness regression towards baseline with bonuses
+                  const baseIncrease = 2; // Base happiness recovery per week when fed
+                  const totalIncrease = baseIncrease + tavernBonus; // Taverns boost recovery
+                  const regressionRate = 1; // Natural regression rate per week
+                  
                   if (newV.happiness < newV.happinessBaseline) {
-                    newV.happiness = Math.min(100, newV.happiness + 2 + tavernBonus + regressionRate);
+                    // Below baseline: increase happiness, but don't overshoot the baseline
+                    const delta = newV.happinessBaseline - newV.happiness;
+                    newV.happiness = Math.min(100, newV.happiness + Math.min(delta, totalIncrease));
                   } else if (newV.happiness > newV.happinessBaseline) {
-                    newV.happiness = Math.max(0, newV.happiness - regressionRate);
+                    // Above baseline: gradually decrease towards baseline
+                    newV.happiness = Math.max(newV.happinessBaseline, newV.happiness - regressionRate);
                   }
-                  // Ensure happiness doesn't exceed 100
-                  newV.happiness = Math.min(100, newV.happiness);
+                  // Ensure happiness stays within 0-100 range
+                  newV.happiness = Math.max(0, Math.min(100, newV.happiness));
                 }
             }
         }
