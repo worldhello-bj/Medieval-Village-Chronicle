@@ -466,6 +466,7 @@ function gameReducer(state: GameState, action: Action): GameState {
       // --- Invasion/Raid Events (Military Challenge) ---
       // Trigger invasion/raid events periodically, especially for larger populations
       let invasionLosses = { food: 0, wood: 0, gold: 0, pop: 0 };
+      let invasionBonuses = { food: 0, wood: 0, gold: 0 }; // Separate bonuses from production
       let newInvasionsRepelled = 0;
       let newRaidsSurvived = 0;
       
@@ -496,9 +497,9 @@ function gameReducer(state: GameState, action: Action): GameState {
               message: `${selectedEvent.message} ${selectedEvent.successMessage}`, 
               type: 'success' 
             });
-            producedFood += selectedEvent.successDeltas.deltaFood;
-            producedWood += selectedEvent.successDeltas.deltaWood;
-            producedGold += selectedEvent.successDeltas.deltaGold;
+            invasionBonuses.food += selectedEvent.successDeltas.deltaFood;
+            invasionBonuses.wood += selectedEvent.successDeltas.deltaWood;
+            invasionBonuses.gold += selectedEvent.successDeltas.deltaGold;
             newInvasionsRepelled = 1;
           } else if (!canDefend && selectedEvent.failureMessage && selectedEvent.failureDeltas) {
             // Failed to defend - check if this causes total destruction
@@ -514,6 +515,7 @@ function gameReducer(state: GameState, action: Action): GameState {
                 status: GameStatus.Finished,
                 population: [],
                 endingType,
+                endingReason,
                 endingSummary: '村庄因军事防御力量严重不足而被入侵者彻底摧毁。所有村民或战死或逃散，曾经繁华的村庄化为废墟。',
                 logs: [...newLogs, { 
                   id: 'end', 
@@ -835,6 +837,7 @@ function gameReducer(state: GameState, action: Action): GameState {
                status: GameStatus.Finished,
                population: [],
                endingType,
+               endingReason,
                endingSummary: '经过长期的饥荒、疾病和苦难，村庄的最后一位居民也离开了人世。曾经生机勃勃的村庄如今只剩下空荡荡的房屋和无尽的沉默。',
                logs: [...newLogs, { id: 'end', tick: state.tick, message: '村庄覆灭了。', type: 'danger' }],
                stats: newStats
@@ -846,10 +849,10 @@ function gameReducer(state: GameState, action: Action): GameState {
         tick: state.tick + 1,
         season: currentSeason,
         resources: {
-          food: round2(Math.max(0, finalFood + invasionLosses.food)),
-          wood: round2(Math.max(0, state.resources.wood + producedWood - consumedWood + invasionLosses.wood)),
+          food: round2(Math.max(0, finalFood + invasionLosses.food + invasionBonuses.food)),
+          wood: round2(Math.max(0, state.resources.wood + producedWood - consumedWood + invasionLosses.wood + invasionBonuses.wood)),
           stone: round2(state.resources.stone + producedStone),
-          gold: round2(Math.max(0, state.resources.gold + producedGold - theftGold + invasionLosses.gold)),
+          gold: round2(Math.max(0, state.resources.gold + producedGold - theftGold + invasionLosses.gold + invasionBonuses.gold)),
           knowledge: round2(state.resources.knowledge + producedKnowledge)
         },
         population: survivors,
@@ -1103,11 +1106,8 @@ export default function App() {
   // Generate AI ending summary when game finishes
   useEffect(() => {
     if (state.status === GameStatus.Finished && state.endingType && !state.endingSummary?.includes('AI generated')) {
-      // Generate AI summary asynchronously
-      const endingReason = state.endingSummary?.includes('军事') ? '军事不足' : 
-                          state.endingSummary?.includes('人口') ? '人口灭绝' : undefined;
-      
-      generateEndingSummary(state, state.endingType, endingReason).then(summary => {
+      // Use endingReason from state instead of fragile string matching
+      generateEndingSummary(state, state.endingType, state.endingReason).then(summary => {
         if (summary && summary !== state.endingSummary) {
           dispatch({ type: 'UPDATE_ENDING_SUMMARY', summary });
         }

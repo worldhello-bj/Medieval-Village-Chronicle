@@ -130,6 +130,7 @@ export interface GameState {
   foodPriority: FoodPriority; // Food distribution priority setting
   endingSummary?: string; // AI-generated ending summary
   endingType?: string; // Type of ending achieved
+  endingReason?: string; // Reason for the ending (e.g., '军事不足', '人口灭绝')
 }
 
 export interface LogEntry {

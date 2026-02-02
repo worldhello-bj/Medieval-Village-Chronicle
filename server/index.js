@@ -7,7 +7,7 @@ const PORT = process.env.PORT || 3001;
 
 // Middleware
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '1mb' })); // Increase body size limit to handle game state
 
 // Initialize Gemini AI
 const getAI = () => {
@@ -153,7 +153,7 @@ app.post('/api/generate-ending', async (req, res) => {
     }
 
     const yearsPlayed = Math.floor(state.tick / 52);
-    const finalPop = state.population?.length || 0;
+    const finalPop = state.population || 0;
     
     const prompt = `
       请为一个中世纪村庄游戏生成一段2-3句话的结局总结（使用中文）。

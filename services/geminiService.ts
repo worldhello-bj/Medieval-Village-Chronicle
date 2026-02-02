@@ -371,12 +371,23 @@ export const generateVillagerBio = async (name: string, age: number, job: string
 // Generate AI-powered ending summary
 export const generateEndingSummary = async (state: GameState, endingType: string, endingReason?: string): Promise<string> => {
   try {
+    // Send only essential data to avoid payload size issues
+    const essentialState = {
+      tick: state.tick,
+      difficulty: state.difficulty,
+      population: state.population ? state.population.length : 0,
+      resources: state.resources,
+      buildings: state.buildings,
+      technologies: state.technologies,
+      stats: state.stats
+    };
+    
     const response = await fetch(`${API_BASE_URL}/api/generate-ending`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ state, endingType, endingReason }),
+      body: JSON.stringify({ state: essentialState, endingType, endingReason }),
     });
 
     if (response.ok) {
@@ -409,9 +420,9 @@ export const determineEndingType = (state: GameState, baseEndingType: string): s
   const totalBuildings = Object.values(state.buildings).reduce((sum, count) => sum + count, 0);
   const allTechsUnlocked = state.technologies.length >= 8; // Total techs in game
   const hasUniversities = state.buildings.universities > 0;
-  const hasLibraries = state.buildings.libraries > 2;
+  const hasLibraries = state.buildings.libraries >= 2;
   const hasCathedrals = state.buildings.cathedrals > 0;
-  const hasTemples = state.buildings.temples > 2;
+  const hasTemples = state.buildings.temples >= 2;
   const manyInvasionsRepelled = (state.stats.invasionsRepelled || 0) >= 5;
   const richResources = state.resources.gold > 500 && state.resources.food > 1000;
   const veryLowDeaths = (state.stats.totalDeaths || 0) < 5;
@@ -472,7 +483,7 @@ export const determineEndingType = (state: GameState, baseEndingType: string): s
   }
   
   // 文化巨人 (Cultural Giant) - Cultural buildings and festivals
-  if (manyFestivals && hasCathedrals && hasTemples && state.buildings.taverns > 2) {
+  if (manyFestivals && hasCathedrals && hasTemples && state.buildings.taverns >= 2) {
     return '文化巨人';
   }
   
