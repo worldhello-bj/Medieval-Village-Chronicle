@@ -1,4 +1,5 @@
 import { GameState, Season } from "../types";
+import { NAMES_MALE } from "../constants";
 
 // Event templates for different scenarios
 interface EventTemplate {
@@ -66,7 +67,7 @@ export const generateGameEvent = async (state: GameState) => {
     } else if (avgHappiness < 60 || foodRatio < 1.0) {
       eventPool = [...NEGATIVE_EVENTS, ...NEUTRAL_EVENTS, ...POSITIVE_EVENTS];
     } else {
-      // Good times = more positive events
+      // Good times = more positive events (doubled weight for positive events)
       eventPool = [...POSITIVE_EVENTS, ...POSITIVE_EVENTS, ...NEUTRAL_EVENTS, ...NEGATIVE_EVENTS];
     }
     
@@ -156,11 +157,9 @@ export const generateVillagerBio = async (name: string, age: number, job: string
     // Replace placeholders
     let bio = template.replace(/{name}/g, name);
     
-    // Determine gender pronoun based on name (simplified approach)
-    // In a real scenario, you might want to store gender with the villager
-    const maleNames = ["亚瑟", "伯纳德", "查理", "大卫", "爱德华", "弗雷德", "乔治", "亨利", "伊恩", "杰克", "凯文", "利奥", "马丁", "诺亚", "奥利弗", "彼得", "昆汀", "罗伯特", "史蒂夫", "托马斯", "乌瑞克", "维克多", "威廉"];
+    // Determine gender pronoun based on name (uses shared male names constant)
     const firstName = name.split('·')[0];
-    const isMale = maleNames.includes(firstName);
+    const isMale = NAMES_MALE.includes(firstName);
     bio = bio.replace(/{他\/她}/g, isMale ? '他' : '她');
     
     return bio;
