@@ -9,7 +9,7 @@ import {
   TRADE_RATES, TRADE_AMOUNT
 } from './constants';
 import { generateInitialPopulation, generateVillager } from './utils/gameHelper';
-import { generateAIEventsBatch, getFixedEvents, getMilitaryEventTemplates, generateEndingSummary } from './services/geminiService';
+import { generateAIEventsBatch, getFixedEvents, getMilitaryEventTemplates, generateEndingSummary, determineEndingType } from './services/geminiService';
 import { round2 } from './utils/mathUtils';
 import { GameEvent } from './types';
 import { ResourceDisplay } from './components/ResourceDisplay';
@@ -341,13 +341,15 @@ function gameReducer(state: GameState, action: Action): GameState {
 
       // Check Game End
       if (state.tick >= GAME_END_TICK) {
-          const endingType = '胜利';
+          // Determine the specific ending type based on achievements
+          const baseEndingType = '胜利';
+          const specificEndingType = determineEndingType(state, baseEndingType);
           
           return { 
             ...state, 
             status: GameStatus.Finished, 
             paused: true,
-            endingType,
+            endingType: specificEndingType,
             endingSummary: `经过${MAX_YEARS}年的艰苦奋斗，村庄终于迎来了和平与繁荣！${state.population.length}位村民享受着他们用汗水和智慧换来的美好生活。这是一段值得永远铭记的传奇！`
           };
       }
@@ -905,10 +907,14 @@ const EndScreen: React.FC<{ state: GameState, onRestart: () => void }> = ({ stat
                     <h2 className="text-4xl medieval-font text-amber-100 mb-2">编年史终章</h2>
                     {state.endingType && (
                         <div className={`text-2xl font-bold mb-3 ${
+                            state.endingType.includes('隐藏') || ['完美统治', '钢铁意志', '速通大师', '苦难求生'].includes(state.endingType) ? 'text-purple-400 animate-pulse' :
+                            ['繁荣盛世', '知识帝国', '军事霸权', '和平天堂', '经济奇迹', '文化巨人'].includes(state.endingType) ? 'text-yellow-400' :
                             state.endingType === '胜利' ? 'text-green-400' : 
                             state.endingType === '灭亡' ? 'text-red-400' : 'text-yellow-400'
                         }`}>
+                            {['完美统治', '钢铁意志', '速通大师', '苦难求生'].includes(state.endingType) && '✨ '}
                             {state.endingType}
+                            {['完美统治', '钢铁意志', '速通大师', '苦难求生'].includes(state.endingType) && ' ✨'}
                         </div>
                     )}
                     {state.endingSummary && (
@@ -970,6 +976,27 @@ const EndScreen: React.FC<{ state: GameState, onRestart: () => void }> = ({ stat
                         </>
                     )}
                 </div>
+
+                {/* Special/Hidden Ending Achievement Display */}
+                {state.endingType && ['完美统治', '钢铁意志', '速通大师', '苦难求生', '繁荣盛世', '知识帝国', '军事霸权', '和平天堂', '经济奇迹', '文化巨人'].includes(state.endingType) && (
+                    <div className="mb-6 p-4 bg-gradient-to-r from-purple-900/30 to-amber-900/30 border-2 border-amber-600/50 rounded-lg">
+                        <div className="text-center text-amber-400 font-bold mb-2">
+                            {['完美统治', '钢铁意志', '速通大师', '苦难求生'].includes(state.endingType) ? '🏆 隐藏结局达成！' : '⭐ 特殊结局达成！'}
+                        </div>
+                        <div className="text-sm text-stone-300 text-center">
+                            {state.endingType === '完美统治' && '全方位的完美表现：高人口、高幸福、全科技、强军事、丰富资源'}
+                            {state.endingType === '钢铁意志' && `经历${stats.starvationDays}天饥荒仍坚持到最后`}
+                            {state.endingType === '速通大师' && '用最少的人口完成10年统治'}
+                            {state.endingType === '苦难求生' && '在困难模式下克服重重困难'}
+                            {state.endingType === '繁荣盛世' && `${population.length}人口、高幸福度、大量建筑`}
+                            {state.endingType === '知识帝国' && `${technologies.length}项科技、${resources.knowledge}知识点`}
+                            {state.endingType === '军事霸权' && `击退${stats.invasionsRepelled}次入侵、强大防御`}
+                            {state.endingType === '和平天堂' && `仅${stats.totalDeaths}人死亡、极高幸福度`}
+                            {state.endingType === '经济奇迹' && `黄金${resources.gold}、食物${resources.food}`}
+                            {state.endingType === '文化巨人' && `${stats.festivalsHeld}次庆典、多座文化建筑`}
+                        </div>
+                    </div>
+                )}
 
                 <button 
                     onClick={onRestart}
