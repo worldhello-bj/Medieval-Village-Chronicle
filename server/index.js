@@ -5,9 +5,19 @@ import OpenAI from 'openai';
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// AI Configuration constants
+const AI_TEMPERATURE = 1;
+const NVIDIA_MODEL = 'openai/gpt-oss-120b';
+const OPENAI_MODEL = 'gpt-4-turbo-preview';
+
 // Middleware
 app.use(cors());
 app.use(express.json({ limit: '1mb' })); // Increase body size limit to handle game state
+
+// Helper function to get the appropriate model name
+const getModelName = () => {
+  return process.env.NVIDIA_API_KEY ? NVIDIA_MODEL : OPENAI_MODEL;
+};
 
 // Initialize OpenAI client with NVIDIA configuration
 const getAI = () => {
@@ -65,15 +75,10 @@ app.post('/api/generate-event', async (req, res) => {
 - deltaGold: 黄金变化（整数）
 - deltaPop: 人口变化（整数，负数为死亡，正数为新移民）`;
 
-    // Use NVIDIA's model if configured, otherwise use GPT-4
-    const model = process.env.NVIDIA_API_KEY 
-      ? 'openai/gpt-oss-120b'
-      : 'gpt-4-turbo-preview';
-
     const completion = await ai.chat.completions.create({
-      model,
+      model: getModelName(),
       messages: [{ role: 'user', content: prompt }],
-      temperature: 1,
+      temperature: AI_TEMPERATURE,
       max_tokens: 1024,
       response_format: { type: 'json_object' }
     });
@@ -118,15 +123,10 @@ app.post('/api/generate-bio', async (req, res) => {
 职业: ${job}
 当前季节: ${season}`;
 
-    // Use NVIDIA's model if configured, otherwise use GPT-4
-    const model = process.env.NVIDIA_API_KEY 
-      ? 'openai/gpt-oss-120b'
-      : 'gpt-4-turbo-preview';
-
     const completion = await ai.chat.completions.create({
-      model,
+      model: getModelName(),
       messages: [{ role: 'user', content: prompt }],
-      temperature: 1,
+      temperature: AI_TEMPERATURE,
       max_tokens: 512
     });
 
@@ -184,15 +184,10 @@ ${endingReason ? `结局原因: ${endingReason}` : ''}
 如果是灭亡结局，要说明灭亡原因并营造悲壮气氛。
 如果是胜利结局，要突出村庄的成就和辉煌。`;
 
-    // Use NVIDIA's model if configured, otherwise use GPT-4
-    const model = process.env.NVIDIA_API_KEY 
-      ? 'openai/gpt-oss-120b'
-      : 'gpt-4-turbo-preview';
-
     const completion = await ai.chat.completions.create({
-      model,
+      model: getModelName(),
       messages: [{ role: 'user', content: prompt }],
-      temperature: 1,
+      temperature: AI_TEMPERATURE,
       max_tokens: 1024
     });
 
