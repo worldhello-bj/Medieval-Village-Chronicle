@@ -26,3 +26,4 @@ server/package-lock.json
 *.njsproj
 *.sln
 *.sw?
+test_*.js
