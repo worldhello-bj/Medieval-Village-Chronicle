@@ -1,0 +1,16 @@
+{
+  "name": "medieval-village-chronicle-server",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Backend API server for Medieval Village Chronicle",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "@google/genai": "^1.38.0"
+  }
+}
