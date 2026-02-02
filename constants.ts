@@ -10,7 +10,7 @@ export const GAME_END_TICK = WEEKS_PER_YEAR * MAX_YEARS;
 // Resource Limits
 // Maximum food value for game balance and to prevent display/chart issues
 // Food accumulates fastest (produced every week per farmer) while other resources have natural consumption sinks
-export const MAX_GAME_FOOD = 999999; // Cap at a reasonable game balance limit
+export const MAX_GAME_FOOD = 999_999; // Cap at a reasonable game balance limit
 
 // Season Boundaries (Week of Year)
 export const SEASON_BOUNDS = {
