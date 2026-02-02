@@ -21,7 +21,7 @@ export const DIFFICULTY_SETTINGS = {
     description: '资源丰富，消耗较低，适合休闲建设。',
     consumptionRate: 0.8,
     productionMultiplier: 1.2,
-    startingResources: { food: 2000, wood: 500, stone: 100, gold: 200, knowledge: 50 },
+    startingResources: { food: 500, wood: 150, stone: 50, gold: 50, knowledge: 20 },
     startingPop: 25
   },
   [Difficulty.Normal]: {
@@ -29,7 +29,7 @@ export const DIFFICULTY_SETTINGS = {
     description: '标准的生存挑战。',
     consumptionRate: 1.0,
     productionMultiplier: 1.0,
-    startingResources: { food: 1000, wood: 200, stone: 50, gold: 100, knowledge: 0 },
+    startingResources: { food: 300, wood: 100, stone: 30, gold: 30, knowledge: 0 },
     startingPop: 20
   },
   [Difficulty.Hard]: {
@@ -37,20 +37,20 @@ export const DIFFICULTY_SETTINGS = {
     description: '严酷的寒冬，刁民难养，物资匮乏。',
     consumptionRate: 1.2,
     productionMultiplier: 0.8,
-    startingResources: { food: 600, wood: 50, stone: 0, gold: 0, knowledge: 0 },
+    startingResources: { food: 200, wood: 30, stone: 0, gold: 0, knowledge: 0 },
     startingPop: 15
   }
 };
 
-// Scale: Per WEEK Per Person (Previously per day, so x7)
+// Scale: Per WEEK Per Person (Reduced for medieval realism)
 export const JOB_INCOME = {
   [Job.Unemployed]: { food: 0, wood: 0, stone: 0, gold: 0, knowledge: 0 },
   [Job.Child]: { food: 0, wood: 0, stone: 0, gold: 0, knowledge: 0 },
   [Job.Farmer]: { food: 0, wood: 0, stone: 0, gold: 0, knowledge: 0 }, 
-  [Job.Woodcutter]: { food: 0, wood: 35, stone: 0, gold: 0, knowledge: 0 }, // 5 * 7
-  [Job.Miner]: { food: 0, wood: 0, stone: 7, gold: 7, knowledge: 0 }, // 1 * 7
+  [Job.Woodcutter]: { food: 0, wood: 20, stone: 0, gold: 0, knowledge: 0 }, // ~3 per day (reduced from 35)
+  [Job.Miner]: { food: 0, wood: 0, stone: 7, gold: 3, knowledge: 0 }, // Stone remains, gold reduced from 7 to 3
   [Job.Guard]: { food: 0, wood: 0, stone: 0, gold: 0, knowledge: 0 },
-  [Job.Scholar]: { food: 0, wood: 0, stone: 0, gold: 0, knowledge: 21 }, // 3 * 7
+  [Job.Scholar]: { food: 0, wood: 0, stone: 0, gold: 0, knowledge: 10 }, // Reduced from 21 to 10
 };
 
 export const CONSUMPTION = {
@@ -60,25 +60,25 @@ export const CONSUMPTION = {
 
 export const WINTER_WOOD_CONSUMPTION = 7; // Wood per person per WEEK in Winter (1 * 7)
 
-// Base output per farmer per week (This remains the same as base, but applies every tick now)
-export const FARMER_WEEKLY_BASE = 28; 
+// Base output per farmer per week (Reduced for medieval realism)
+export const FARMER_WEEKLY_BASE = 20; // ~3 per day (reduced from 28) 
 
 export const BUILDING_COSTS = {
-  House: { wood: 50, stone: 5, gold: 0 }, 
-  Market: { wood: 100, stone: 20, gold: 50 },
-  StoneWall: { wood: 0, stone: 150, gold: 0 }, 
-  Library: { wood: 100, stone: 300, gold: 0 }, 
-  Tavern: { wood: 150, stone: 100, gold: 100 },
-  Cathedral: { wood: 0, stone: 500, gold: 300 }, 
-  Farm: { wood: 80, stone: 10, gold: 20 },
-  LumberMill: { wood: 120, stone: 30, gold: 30 },
-  Mine: { wood: 100, stone: 50, gold: 50 },
-  Watchtower: { wood: 80, stone: 100, gold: 40 },
-  Granary: { wood: 100, stone: 50, gold: 30 },
-  Blacksmith: { wood: 100, stone: 80, gold: 100 },
-  Temple: { wood: 150, stone: 200, gold: 150 },
-  University: { wood: 200, stone: 400, gold: 300 },
-  Festival: { wood: 0, stone: 0, gold: 100, food: 200 } 
+  House: { wood: 30, stone: 3, gold: 0 }, 
+  Market: { wood: 60, stone: 15, gold: 30 },
+  StoneWall: { wood: 0, stone: 100, gold: 0 }, 
+  Library: { wood: 60, stone: 200, gold: 0 }, 
+  Tavern: { wood: 100, stone: 60, gold: 60 },
+  Cathedral: { wood: 0, stone: 350, gold: 200 }, 
+  Farm: { wood: 50, stone: 5, gold: 15 },
+  LumberMill: { wood: 80, stone: 20, gold: 20 },
+  Mine: { wood: 60, stone: 30, gold: 30 },
+  Watchtower: { wood: 50, stone: 60, gold: 25 },
+  Granary: { wood: 60, stone: 30, gold: 20 },
+  Blacksmith: { wood: 60, stone: 50, gold: 60 },
+  Temple: { wood: 100, stone: 120, gold: 100 },
+  University: { wood: 120, stone: 250, gold: 200 },
+  Festival: { wood: 0, stone: 0, gold: 60, food: 120 } 
 };
 
 // Trade Rates (Resource amount per transaction)
@@ -98,16 +98,16 @@ export const LIBRARY_KNOWLEDGE_BONUS = 7; // Weekly bonus
 
 export const TECH_TREE: Tech[] = [
     // Tier 1
-    { id: 'tools_1', name: '铁制工具', description: '更锋利的工具。伐木工与矿工产量 +20%。', cost: 150 },
-    { id: 'farming_1', name: '轮作技术', description: '改良耕种方式，农夫产量 +20%。', cost: 200 },
+    { id: 'tools_1', name: '铁制工具', description: '更锋利的工具。伐木工与矿工产量 +20%。', cost: 80 },
+    { id: 'farming_1', name: '轮作技术', description: '改良耕种方式，农夫产量 +20%。', cost: 100 },
     // Tier 2
-    { id: 'archery_1', name: '箭术训练', description: '守卫受过专业训练，单人治安覆盖人数从 10 提升至 15。', cost: 300 },
-    { id: 'forestry_1', name: '林业管理', description: '科学砍伐，伐木工产量额外 +20%。', cost: 300 },
-    { id: 'scribing_1', name: '抄写员', description: '优化知识记录，学者每周产出知识 +7。', cost: 350 },
+    { id: 'archery_1', name: '箭术训练', description: '守卫受过专业训练，单人治安覆盖人数从 10 提升至 15。', cost: 150 },
+    { id: 'forestry_1', name: '林业管理', description: '科学砍伐，伐木工产量额外 +20%。', cost: 150 },
+    { id: 'scribing_1', name: '抄写员', description: '优化知识记录，学者每周产出知识 +7。', cost: 180 },
     // Tier 3
-    { id: 'medicine_1', name: '草药学', description: '改善医疗卫生。生病死亡率大幅降低，健康恢复速度翻倍。', cost: 500 },
-    { id: 'irrigation_1', name: '灌溉渠', description: '建立水利设施。农夫产量额外 +20% (与轮作叠加)。', cost: 600 },
-    { id: 'masonry_1', name: '石工建筑', description: '改良房屋结构。房屋人口容量从 5 提升至 8。', cost: 800 },
+    { id: 'medicine_1', name: '草药学', description: '改善医疗卫生。生病死亡率大幅降低，健康恢复速度翻倍。', cost: 250 },
+    { id: 'irrigation_1', name: '灌溉渠', description: '建立水利设施。农夫产量额外 +20% (与轮作叠加)。', cost: 300 },
+    { id: 'masonry_1', name: '石工建筑', description: '改良房屋结构。房屋人口容量从 5 提升至 8。', cost: 400 },
 ];
 
 export const NAMES_MALE = [
