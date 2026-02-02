@@ -73,6 +73,12 @@ export interface Buildings {
   blacksmiths: number; // Boosts tool efficiency
   temples: number; // Religious building for morale
   universities: number; // Ultimate knowledge wonder
+  workshops: number; // Boosts production efficiency
+  barracks: number; // Improves guard training
+  stables: number; // Enables cavalry
+  aqueducts: number; // Improves health and farming
+  trainingGrounds: number; // Boosts guard effectiveness
+  alchemists: number; // Boosts knowledge production
 }
 
 export interface Tech {
