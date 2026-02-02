@@ -66,6 +66,18 @@ export interface Tech {
   cost: number;
 }
 
+export interface GameEvent {
+  id: string;
+  message: string;
+  type: 'info' | 'warning' | 'danger' | 'success';
+  deltaFood: number;
+  deltaWood: number;
+  deltaGold: number;
+  deltaPop: number;
+  source: 'ai' | 'fixed' | 'happiness';
+  weight: number; // For weighted random selection
+}
+
 export interface GameStats {
   totalBirths: number;
   totalDeaths: number;
@@ -96,6 +108,7 @@ export interface GameState {
   gameSpeed: number;
   history: { tick: number; pop: number; food: number }[];
   stats: GameStats;
+  eventPool: GameEvent[]; // Pool of available events (mixed AI and fixed)
 }
 
 export interface LogEntry {

@@ -1,4 +1,4 @@
-import { GameState, Season } from "../types";
+import { GameState, Season, GameEvent } from "../types";
 import { NAMES_MALE } from "../constants";
 
 // Backend API configuration
@@ -53,42 +53,113 @@ const SEVERE_NEGATIVE_EVENTS: EventTemplate[] = [
   { message: "土匪洗劫了村庄。", type: 'danger', deltaFood: -60, deltaWood: -30, deltaGold: -50, deltaPop: -1 },
 ];
 
-// Fallback function using templates (used when backend is unavailable)
-const generateEventFallback = (state: GameState): EventTemplate | null => {
-  try {
-    const avgHappiness = Math.floor(state.population.reduce((acc, v) => acc + v.happiness, 0) / state.population.length) || 0;
-    const popSize = state.population.length;
-    const foodRatio = state.resources.food / Math.max(1, popSize * 50);
-    
-    let eventPool: EventTemplate[] = [];
-    
-    if (avgHappiness < 40 || foodRatio < 0.5) {
-      eventPool = [...SEVERE_NEGATIVE_EVENTS, ...NEGATIVE_EVENTS, ...NEUTRAL_EVENTS];
-    } else if (avgHappiness < 60 || foodRatio < 1.0) {
-      eventPool = [...NEGATIVE_EVENTS, ...NEUTRAL_EVENTS, ...POSITIVE_EVENTS];
-    } else {
-      eventPool = [...POSITIVE_EVENTS, ...POSITIVE_EVENTS, ...NEUTRAL_EVENTS, ...NEGATIVE_EVENTS];
-    }
-    
-    if (state.season === Season.Winter) {
-      eventPool.push({ message: "寒冷的冬日考验着村民的意志。", type: 'warning', deltaFood: -20, deltaWood: -40, deltaGold: 0, deltaPop: 0 });
-    } else if (state.season === Season.Spring) {
-      eventPool.push({ message: "春天带来了新的希望和活力。", type: 'success', deltaFood: 40, deltaWood: 0, deltaGold: 0, deltaPop: 0 });
-    } else if (state.season === Season.Summer) {
-      eventPool.push({ message: "夏日阳光普照，万物繁茂。", type: 'success', deltaFood: 50, deltaWood: 0, deltaGold: 0, deltaPop: 0 });
-    } else if (state.season === Season.Autumn) {
-      eventPool.push({ message: "秋收时节，粮仓充盈。", type: 'success', deltaFood: 80, deltaWood: 0, deltaGold: 0, deltaPop: 0 });
-    }
-    
-    return eventPool[Math.floor(Math.random() * eventPool.length)];
-  } catch (error) {
-    console.error("Fallback event gen error:", error);
-    return null;
+// Happiness-based fixed events
+const HAPPINESS_EVENTS: EventTemplate[] = [
+  { message: "村民因高幸福度而工作效率大增！", type: 'success', deltaFood: 0, deltaWood: 0, deltaGold: 0, deltaPop: 0 },
+  { message: "幸福的村民自发举办了庆祝活动。", type: 'success', deltaFood: -10, deltaWood: 0, deltaGold: 5, deltaPop: 0 },
+  { message: "低落的士气影响了村庄的生产。", type: 'warning', deltaFood: 0, deltaWood: 0, deltaGold: 0, deltaPop: 0 },
+  { message: "村民因不满而抱怨连连。", type: 'warning', deltaFood: -20, deltaWood: 0, deltaGold: 0, deltaPop: 0 },
+  { message: "极度不满的村民开始考虑离开。", type: 'danger', deltaFood: 0, deltaWood: 0, deltaGold: 0, deltaPop: -1 },
+];
+
+// Convert template to GameEvent
+const templateToGameEvent = (template: EventTemplate, source: 'fixed' | 'happiness', weight: number = 1): GameEvent => ({
+  id: Math.random().toString(36).substr(2, 9),
+  message: template.message,
+  type: template.type,
+  deltaFood: template.deltaFood,
+  deltaWood: template.deltaWood,
+  deltaGold: template.deltaGold,
+  deltaPop: template.deltaPop,
+  source,
+  weight
+});
+
+// Get all fixed events as GameEvents
+export const getFixedEvents = (state: GameState): GameEvent[] => {
+  const avgHappiness = state.population.reduce((acc, v) => acc + v.happiness, 0) / state.population.length || 0;
+  const popSize = state.population.length;
+  const foodRatio = state.resources.food / Math.max(1, popSize * 50);
+  
+  let events: GameEvent[] = [];
+  
+  // Add appropriate events based on game state with weights
+  if (avgHappiness > 70) {
+    events.push(...POSITIVE_EVENTS.map(e => templateToGameEvent(e, 'fixed', 1.5)));
+  } else if (avgHappiness < 40) {
+    events.push(...NEGATIVE_EVENTS.map(e => templateToGameEvent(e, 'fixed', 1.5)));
+  } else {
+    events.push(...NEUTRAL_EVENTS.map(e => templateToGameEvent(e, 'fixed', 1.0)));
   }
+  
+  // Add happiness-specific events with higher weight
+  if (avgHappiness > 80) {
+    events.push(...[HAPPINESS_EVENTS[0], HAPPINESS_EVENTS[1]].map(e => templateToGameEvent(e, 'happiness', 2.0)));
+  } else if (avgHappiness < 40) {
+    events.push(...[HAPPINESS_EVENTS[3], HAPPINESS_EVENTS[4]].map(e => templateToGameEvent(e, 'happiness', 2.0)));
+  }
+  
+  // Add season-specific events
+  if (state.season === Season.Winter) {
+    events.push(templateToGameEvent({ message: "寒冷的冬日考验着村民的意志。", type: 'warning', deltaFood: -20, deltaWood: -40, deltaGold: 0, deltaPop: 0 }, 'fixed', 1.5));
+  } else if (state.season === Season.Spring) {
+    events.push(templateToGameEvent({ message: "春天带来了新的希望和活力。", type: 'success', deltaFood: 40, deltaWood: 0, deltaGold: 0, deltaPop: 0 }, 'fixed', 1.5));
+  } else if (state.season === Season.Summer) {
+    events.push(templateToGameEvent({ message: "夏日阳光普照，万物繁茂。", type: 'success', deltaFood: 50, deltaWood: 0, deltaGold: 0, deltaPop: 0 }, 'fixed', 1.5));
+  } else if (state.season === Season.Autumn) {
+    events.push(templateToGameEvent({ message: "秋收时节，粮仓充盈。", type: 'success', deltaFood: 80, deltaWood: 0, deltaGold: 0, deltaPop: 0 }, 'fixed', 1.5));
+  }
+  
+  return events;
 };
 
-// Used for generating random events affecting the village
-export const generateGameEvent = async (state: GameState) => {
+// Generate multiple AI events at once (for initial pool and replenishment)
+export const generateAIEventsBatch = async (state: GameState, count: number = 5): Promise<GameEvent[]> => {
+  const events: GameEvent[] = [];
+  
+  try {
+    // Try to call backend API to generate multiple events
+    const promises = Array(count).fill(null).map(() => 
+      fetch(`${API_BASE_URL}/api/generate-event`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ state }),
+      })
+    );
+
+    const responses = await Promise.allSettled(promises);
+    
+    for (const result of responses) {
+      if (result.status === 'fulfilled' && result.value.ok) {
+        const eventData = await result.value.json();
+        events.push({
+          id: Math.random().toString(36).substr(2, 9),
+          message: eventData.message,
+          type: eventData.type,
+          deltaFood: eventData.deltaFood,
+          deltaWood: eventData.deltaWood,
+          deltaGold: eventData.deltaGold,
+          deltaPop: eventData.deltaPop,
+          source: 'ai',
+          weight: 1.0
+        });
+        console.log('AI Event generated via backend API');
+      }
+    }
+  } catch (error: any) {
+    console.warn('Backend API error during batch generation:', error.message);
+  }
+  
+  // If we didn't get enough AI events, we don't add fallbacks here
+  // The pool will use fixed events from getFixedEvents()
+  console.log(`Generated ${events.length} AI events`);
+  return events;
+};
+
+// Used for generating random events affecting the village (legacy, now returns GameEvent)
+export const generateGameEvent = async (state: GameState): Promise<GameEvent | null> => {
   try {
     // Try to call backend API first
     const response = await fetch(`${API_BASE_URL}/api/generate-event`, {
@@ -102,53 +173,31 @@ export const generateGameEvent = async (state: GameState) => {
     if (response.ok) {
       const eventData = await response.json();
       console.log('AI Event generated via backend API');
-      return eventData;
+      return {
+        id: Math.random().toString(36).substr(2, 9),
+        message: eventData.message,
+        type: eventData.type,
+        deltaFood: eventData.deltaFood,
+        deltaWood: eventData.deltaWood,
+        deltaGold: eventData.deltaGold,
+        deltaPop: eventData.deltaPop,
+        source: 'ai',
+        weight: 1.0
+      };
     }
 
-    // If backend API fails, fall back to templates
-    console.warn('Backend API unavailable, using fallback templates');
-    return generateEventFallback(state);
+    return null;
 
   } catch (error: any) {
-    console.warn('Backend API error, using fallback templates:', error.message);
-    return generateEventFallback(state);
+    console.warn('Backend API error:', error.message);
+    return null;
   }
 };
 
-// Happiness-based fixed events (these occur independently and can happen alongside AI events)
-const HAPPINESS_EVENTS: EventTemplate[] = [
-  { message: "村民因高幸福度而工作效率大增！", type: 'success', deltaFood: 0, deltaWood: 0, deltaGold: 0, deltaPop: 0 },
-  { message: "幸福的村民自发举办了庆祝活动。", type: 'success', deltaFood: -10, deltaWood: 0, deltaGold: 5, deltaPop: 0 },
-  { message: "低落的士气影响了村庄的生产。", type: 'warning', deltaFood: 0, deltaWood: 0, deltaGold: 0, deltaPop: 0 },
-  { message: "村民因不满而抱怨连连。", type: 'warning', deltaFood: -20, deltaWood: 0, deltaGold: 0, deltaPop: 0 },
-  { message: "极度不满的村民开始考虑离开。", type: 'danger', deltaFood: 0, deltaWood: 0, deltaGold: 0, deltaPop: -1 },
-];
-
-// Generate a happiness-based fixed event (independent of AI events)
-export const generateHappinessEvent = (state: GameState): EventTemplate | null => {
-  try {
-    const avgHappiness = state.population.reduce((acc, v) => acc + v.happiness, 0) / state.population.length || 0;
-    
-    // High happiness events (>80)
-    if (avgHappiness > 80 && Math.random() < 0.3) {
-      return HAPPINESS_EVENTS[Math.random() < 0.5 ? 0 : 1];
-    }
-    
-    // Medium-low happiness events (40-60)
-    if (avgHappiness >= 40 && avgHappiness <= 60 && Math.random() < 0.2) {
-      return HAPPINESS_EVENTS[2];
-    }
-    
-    // Low happiness events (<40)
-    if (avgHappiness < 40 && Math.random() < 0.3) {
-      return HAPPINESS_EVENTS[Math.random() < 0.5 ? 3 : 4];
-    }
-    
-    return null;
-  } catch (error) {
-    console.error("Happiness event gen error:", error);
-    return null;
-  }
+// Remove deprecated functions
+export const generateHappinessEvent = (state: GameState): GameEvent | null => {
+  // This is now integrated into getFixedEvents
+  return null;
 };
 
 // Bio templates for different job types

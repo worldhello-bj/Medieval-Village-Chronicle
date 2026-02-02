@@ -9,8 +9,9 @@ import {
   TRADE_RATES, TRADE_AMOUNT
 } from './constants';
 import { generateInitialPopulation, generateVillager } from './utils/gameHelper';
-import { generateGameEvent, generateHappinessEvent } from './services/geminiService';
+import { generateAIEventsBatch, getFixedEvents } from './services/geminiService';
 import { round2 } from './utils/mathUtils';
+import { GameEvent } from './types';
 import { ResourceDisplay } from './components/ResourceDisplay';
 import { VillagerList } from './components/VillagerList';
 import { GameControls } from './components/GameControls';
@@ -22,11 +23,13 @@ import { GiTrophyCup, GiSkullCrossedBones, GiBabyFace, GiWheat, GiCrown } from '
 // --- State Management ---
 type Action = 
   | { type: 'START_GAME'; difficulty: Difficulty }
+  | { type: 'INIT_EVENT_POOL'; events: GameEvent[] }
+  | { type: 'REPLENISH_EVENT_POOL'; events: GameEvent[] }
   | { type: 'TICK' }
   | { type: 'TOGGLE_PAUSE' }
   | { type: 'ASSIGN_JOB'; job: Job; amount: number }
   | { type: 'UPDATE_BIO'; id: string; bio: string }
-  | { type: 'AI_EVENT'; payload: any }
+  | { type: 'TRIGGER_EVENT'; eventId: string }
   | { type: 'CONSTRUCT_BUILDING'; building: keyof typeof BUILDING_COSTS }
   | { type: 'HOLD_FESTIVAL' }
   | { type: 'RESEARCH_TECH'; techId: string }
@@ -56,7 +59,8 @@ const initialState: GameState = {
   paused: true,
   gameSpeed: 500, // Slower tick speed because 1 tick is now 1 week (more impactful)
   history: [],
-  stats: initialStats
+  stats: initialStats,
+  eventPool: [] // Initialize empty event pool
 };
 
 function gameReducer(state: GameState, action: Action): GameState {
@@ -72,7 +76,109 @@ function gameReducer(state: GameState, action: Action): GameState {
         resources: { ...settings.startingResources },
         population: generateInitialPopulation(settings.startingPop),
         stats: { ...initialStats, peakPopulation: settings.startingPop },
-        logs: [{ id: 'init', tick: 1, message: `你的统治开始了。难度: ${settings.name}。目标: 存活 ${MAX_YEARS} 年。`, type: 'info' }]
+        logs: [{ id: 'init', tick: 1, message: `你的统治开始了。难度: ${settings.name}。目标: 存活 ${MAX_YEARS} 年。`, type: 'info' }],
+        eventPool: [] // Will be filled asynchronously after game starts
+      };
+    }
+
+    case 'INIT_EVENT_POOL': {
+      return {
+        ...state,
+        eventPool: action.events
+      };
+    }
+
+    case 'REPLENISH_EVENT_POOL': {
+      return {
+        ...state,
+        eventPool: [...state.eventPool, ...action.events]
+      };
+    }
+
+    case 'TRIGGER_EVENT': {
+      // Find event in pool
+      const event = state.eventPool.find(e => e.id === action.eventId);
+      if (!event) return state;
+
+      // Calculate average happiness for impact modifier
+      const avgHappiness = state.population.reduce((acc, v) => acc + v.happiness, 0) / state.population.length || 0;
+      const happinessMultiplier = round2(1 + (avgHappiness - 50) / 200); // Range: 0.75 to 1.25
+      
+      // Difficulty modifier for events (Bad events are worse on Hard)
+      const diffSettings = DIFFICULTY_SETTINGS[state.difficulty];
+      let finalDeltaFood = event.deltaFood;
+      let finalDeltaGold = event.deltaGold;
+      let finalDeltaWood = event.deltaWood;
+      
+      if (state.difficulty === Difficulty.Hard && (event.deltaFood < 0 || event.deltaGold < 0)) {
+          finalDeltaFood = round2(event.deltaFood * 1.5);
+          finalDeltaGold = round2(event.deltaGold * 1.5);
+      }
+
+      // Guard mitigation logic
+      const guardCount = state.population.filter(p => p.job === Job.Guard).length;
+      const hasArchery = state.technologies.includes('archery_1');
+      const baseCoverage = hasArchery ? GUARD_COVERAGE_UPGRADED : GUARD_COVERAGE_BASE;
+      const wallBonus = state.buildings.walls * WALL_GUARD_BONUS;
+      const guardCoverage = baseCoverage + wallBonus;
+      const securityRatio = round2(Math.min(1, (guardCount * guardCoverage) / Math.max(1, state.population.length)));
+      
+      let modMessage = event.message;
+      let happinessImpactNote = "";
+      
+      // Apply happiness modifier to events (amplify good, reduce bad impact)
+      if (event.deltaFood > 0 || event.deltaGold > 0) {
+        finalDeltaFood = round2(finalDeltaFood * happinessMultiplier);
+        finalDeltaGold = round2(finalDeltaGold * happinessMultiplier);
+        if (happinessMultiplier > 1.1) {
+          happinessImpactNote = " (高幸福度提升了收益)";
+        }
+      } else if (event.deltaFood < 0 || event.deltaGold < 0) {
+        // High happiness reduces negative impact
+        finalDeltaFood = round2(finalDeltaFood / happinessMultiplier);
+        finalDeltaGold = round2(finalDeltaGold / happinessMultiplier);
+        if (happinessMultiplier > 1.1) {
+          happinessImpactNote = " (高幸福度减轻了损失)";
+        } else if (happinessMultiplier < 0.9) {
+          happinessImpactNote = " (低幸福度加重了损失)";
+        }
+      }
+      
+      if (securityRatio > 0.5) {
+          if (finalDeltaFood < 0) finalDeltaFood = round2(finalDeltaFood * (1 - securityRatio * 0.5)); 
+          if (finalDeltaGold < 0) finalDeltaGold = round2(finalDeltaGold * (1 - securityRatio * 0.8)); 
+          if ((finalDeltaFood !== event.deltaFood || finalDeltaGold !== event.deltaGold)) {
+               modMessage += " (守卫减少了损失)";
+          }
+      }
+      
+      modMessage += happinessImpactNote;
+
+      const newResources = {
+        food: round2(Math.max(0, state.resources.food + finalDeltaFood)),
+        wood: round2(Math.max(0, state.resources.wood + finalDeltaWood)),
+        stone: round2(state.resources.stone),
+        gold: round2(Math.max(0, state.resources.gold + finalDeltaGold)),
+        knowledge: round2(state.resources.knowledge)
+      };
+      
+      let newPop = [...state.population];
+      if (event.deltaPop && event.deltaPop < 0) {
+        const deaths = Math.abs(event.deltaPop);
+        newPop.splice(0, deaths);
+      } else if (event.deltaPop && event.deltaPop > 0) {
+        for(let i=0; i<event.deltaPop; i++) newPop.push(generateVillager());
+      }
+
+      // Remove used event from pool
+      const newEventPool = state.eventPool.filter(e => e.id !== action.eventId);
+
+      return {
+        ...state,
+        resources: newResources,
+        population: newPop,
+        logs: [...state.logs, { id: Math.random().toString(), tick: state.tick, message: modMessage, type: event.source === 'ai' ? 'ai' : event.type }],
+        eventPool: newEventPool
       };
     }
 
@@ -203,86 +309,6 @@ function gameReducer(state: GameState, action: Action): GameState {
         }
       }
       return { ...state, population: newPop };
-    }
-
-    case 'AI_EVENT': {
-      const { message, type, deltaFood, deltaWood, deltaGold, deltaPop } = action.payload;
-      
-      // Calculate average happiness for impact modifier
-      const avgHappiness = state.population.reduce((acc, v) => acc + v.happiness, 0) / state.population.length || 0;
-      const happinessMultiplier = round2(1 + (avgHappiness - 50) / 200); // Range: 0.75 to 1.25
-      
-      // Difficulty modifier for AI events (Bad events are worse on Hard)
-      const diffSettings = DIFFICULTY_SETTINGS[state.difficulty];
-      let finalDeltaFood = deltaFood;
-      let finalDeltaGold = deltaGold;
-      
-      if (state.difficulty === Difficulty.Hard && (deltaFood < 0 || deltaGold < 0)) {
-          finalDeltaFood = round2(deltaFood * 1.5);
-          finalDeltaGold = round2(deltaGold * 1.5);
-      }
-
-      // Guard mitigation logic
-      const guardCount = state.population.filter(p => p.job === Job.Guard).length;
-      const hasArchery = state.technologies.includes('archery_1');
-      const baseCoverage = hasArchery ? GUARD_COVERAGE_UPGRADED : GUARD_COVERAGE_BASE;
-      const wallBonus = state.buildings.walls * WALL_GUARD_BONUS;
-      const guardCoverage = baseCoverage + wallBonus;
-      const securityRatio = round2(Math.min(1, (guardCount * guardCoverage) / Math.max(1, state.population.length)));
-      
-      let modMessage = message;
-      let happinessImpactNote = "";
-      
-      // Apply happiness modifier to positive events (amplify good, reduce bad)
-      if (deltaFood > 0 || deltaGold > 0) {
-        finalDeltaFood = round2(finalDeltaFood * happinessMultiplier);
-        finalDeltaGold = round2(finalDeltaGold * happinessMultiplier);
-        if (happinessMultiplier > 1.1) {
-          happinessImpactNote = " (高幸福度提升了收益)";
-        }
-      } else if (deltaFood < 0 || deltaGold < 0) {
-        // High happiness reduces negative impact
-        finalDeltaFood = round2(finalDeltaFood / happinessMultiplier);
-        finalDeltaGold = round2(finalDeltaGold / happinessMultiplier);
-        if (happinessMultiplier > 1.1) {
-          happinessImpactNote = " (高幸福度减轻了损失)";
-        } else if (happinessMultiplier < 0.9) {
-          happinessImpactNote = " (低幸福度加重了损失)";
-        }
-      }
-      
-      if (securityRatio > 0.5) {
-          if (finalDeltaFood < 0) finalDeltaFood = round2(finalDeltaFood * (1 - securityRatio * 0.5)); 
-          if (finalDeltaGold < 0) finalDeltaGold = round2(finalDeltaGold * (1 - securityRatio * 0.8)); 
-          if ((finalDeltaFood !== deltaFood || finalDeltaGold !== deltaGold)) {
-               modMessage += " (守卫减少了损失)";
-          }
-      }
-      
-      modMessage += happinessImpactNote;
-
-      const newResources = {
-        food: round2(Math.max(0, state.resources.food + finalDeltaFood)),
-        wood: round2(Math.max(0, state.resources.wood + deltaWood)), // Wood usually not stolen
-        stone: round2(state.resources.stone),
-        gold: round2(Math.max(0, state.resources.gold + finalDeltaGold)),
-        knowledge: round2(state.resources.knowledge)
-      };
-      
-      let newPop = [...state.population];
-      if (deltaPop && deltaPop < 0) {
-        const deaths = Math.abs(deltaPop);
-        newPop.splice(0, deaths);
-      } else if (deltaPop && deltaPop > 0) {
-        for(let i=0; i<deltaPop; i++) newPop.push(generateVillager());
-      }
-
-      return {
-        ...state,
-        resources: newResources,
-        population: newPop,
-        logs: [...state.logs, { id: Math.random().toString(), tick: state.tick, message: modMessage, type: 'ai' }]
-      };
     }
 
     case 'TICK': {
@@ -676,28 +702,67 @@ export default function App() {
     return () => clearInterval(timer);
   }, [state.gameSpeed]);
 
+  // Initialize event pool when game starts
+  useEffect(() => {
+    if (state.status === GameStatus.Playing && state.eventPool.length === 0 && state.tick === 1) {
+      console.log('Initializing event pool...');
+      
+      // Get fixed events immediately
+      const fixedEvents = getFixedEvents(state);
+      
+      // Generate AI events asynchronously
+      generateAIEventsBatch(state, 8).then(aiEvents => {
+        const allEvents = [...fixedEvents, ...aiEvents];
+        console.log(`Event pool initialized with ${allEvents.length} events (${aiEvents.length} AI, ${fixedEvents.length} fixed)`);
+        dispatch({ type: 'INIT_EVENT_POOL', events: allEvents });
+      });
+    }
+  }, [state.status, state.tick, state.eventPool.length]);
+
+  // Replenish event pool periodically during gameplay
   useEffect(() => {
     if (state.paused || state.status !== GameStatus.Playing) return;
     
-    // Check for AI events roughly once every 4-5 weeks (ticks)
-    if (state.tick > 4 && state.tick % 4 === 0) { 
-      if (Math.random() > 0.6) {
-        generateGameEvent(state).then(eventData => {
-            if (eventData) {
-                dispatch({ type: 'AI_EVENT', payload: eventData });
-            }
+    // Every 10 ticks, check if pool needs replenishment
+    if (state.tick > 1 && state.tick % 10 === 0) {
+      // Refresh fixed events based on current state
+      const fixedEvents = getFixedEvents(state);
+      
+      // If pool is low (< 5 events), generate more AI events
+      if (state.eventPool.length < 5) {
+        console.log('Event pool low, generating more events...');
+        generateAIEventsBatch(state, 5).then(aiEvents => {
+          const newEvents = [...fixedEvents, ...aiEvents];
+          console.log(`Replenishing pool with ${newEvents.length} events`);
+          dispatch({ type: 'REPLENISH_EVENT_POOL', events: newEvents });
         });
       }
     }
+  }, [state.tick, state.paused, state.status, state.eventPool.length]);
+
+  // Trigger events from pool using weighted random selection
+  useEffect(() => {
+    if (state.paused || state.status !== GameStatus.Playing) return;
+    if (state.eventPool.length === 0) return;
     
-    // Check for happiness-based fixed events independently (can occur alongside AI events)
-    if (state.tick > 2 && state.tick % 3 === 0) {
-      const happinessEvent = generateHappinessEvent(state);
-      if (happinessEvent) {
-        dispatch({ type: 'AI_EVENT', payload: happinessEvent });
+    // Trigger event roughly every 3-4 ticks
+    if (state.tick > 4 && state.tick % 3 === 0) {
+      if (Math.random() > 0.4) {
+        // Weighted random selection
+        const totalWeight = state.eventPool.reduce((sum, e) => sum + e.weight, 0);
+        let random = Math.random() * totalWeight;
+        
+        for (const event of state.eventPool) {
+          random -= event.weight;
+          if (random <= 0) {
+            console.log(`Triggering event: ${event.message} (source: ${event.source})`);
+            dispatch({ type: 'TRIGGER_EVENT', eventId: event.id });
+            break;
+          }
+        }
       }
     }
-  }, [state.tick, state.paused, state.status]);
+  }, [state.tick, state.paused, state.status, state.eventPool]);
 
   const handleAssignJob = (job: Job, amount: number) => {
     dispatch({ type: 'ASSIGN_JOB', job, amount });
