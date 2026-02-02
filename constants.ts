@@ -60,8 +60,9 @@ export const CONSUMPTION = {
 
 export const WINTER_WOOD_CONSUMPTION = 7; // Wood per person per WEEK in Winter (1 * 7)
 
-// Base output per farmer per week (Reduced for medieval realism)
-export const FARMER_WEEKLY_BASE = 20; // ~3 per day (reduced from 28) 
+// Base output per farmer per week (Adjusted to ensure 1 farmer can feed 1.5 people)
+// 32 food/week ÷ 21 food/week per person = 1.52 ratio
+export const FARMER_WEEKLY_BASE = 32; // ~4.5 per day 
 
 export const BUILDING_COSTS = {
   House: { wood: 30, stone: 3, gold: 0 }, 
