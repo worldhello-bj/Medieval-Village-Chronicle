@@ -1159,8 +1159,9 @@ export default function App() {
   // Save state to cookie periodically during gameplay
   useEffect(() => {
     if (state.status === GameStatus.Playing && !state.paused) {
-      // Save every 5 ticks to reduce overhead
-      if (state.tick % 5 === 0) {
+      // Save every 20 ticks (approximately every 16 seconds at 800ms per tick)
+      // This reduces overhead while still providing reasonable save frequency
+      if (state.tick % 20 === 0) {
         saveStateToCookie(state);
       }
     }

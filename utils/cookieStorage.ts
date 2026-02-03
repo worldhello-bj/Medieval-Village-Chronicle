@@ -10,26 +10,27 @@ const COOKIE_NAME = 'medieval_village_state';
 const COOKIE_EXPIRY_DAYS = 7;
 
 /**
- * Compresses a string using a simple encoding to reduce size
+ * Encodes a string using base64 for safe cookie storage
+ * Note: This increases data size by ~33% but is necessary for cookie compatibility
  */
-function compressString(str: string): string {
+function encodeString(str: string): string {
   try {
     // Use btoa for base64 encoding - browser native
     return btoa(encodeURIComponent(str));
   } catch (e) {
-    console.error('Compression failed:', e);
+    console.error('Encoding failed:', e);
     return str;
   }
 }
 
 /**
- * Decompresses a string
+ * Decodes a base64 encoded string
  */
-function decompressString(str: string): string {
+function decodeString(str: string): string {
   try {
     return decodeURIComponent(atob(str));
   } catch (e) {
-    console.error('Decompression failed:', e);
+    console.error('Decoding failed:', e);
     return str;
   }
 }
@@ -48,12 +49,12 @@ export function saveStateToCookie(state: GameState): boolean {
     };
 
     const stateJson = JSON.stringify(stateToSave);
-    const compressed = compressString(stateJson);
+    const encoded = encodeString(stateJson);
     
     // Check if data is too large for cookie (cookies have ~4KB limit per cookie)
     // We'll split into multiple cookies if needed
     const chunkSize = 4000; // Safe size per cookie
-    const chunks = Math.ceil(compressed.length / chunkSize);
+    const chunks = Math.ceil(encoded.length / chunkSize);
     
     if (chunks > 20) {
       // Too large even with splitting
@@ -70,8 +71,8 @@ export function saveStateToCookie(state: GameState): boolean {
     // Save chunks
     for (let i = 0; i < chunks; i++) {
       const start = i * chunkSize;
-      const end = Math.min(start + chunkSize, compressed.length);
-      const chunk = compressed.slice(start, end);
+      const end = Math.min(start + chunkSize, encoded.length);
+      const chunk = encoded.slice(start, end);
       setCookie(`${COOKIE_NAME}_${i}`, chunk, COOKIE_EXPIRY_DAYS);
     }
 
@@ -97,19 +98,19 @@ export function loadStateFromCookie(): GameState | null {
       return null;
     }
 
-    // Reconstruct compressed data from chunks
-    let compressed = '';
+    // Reconstruct encoded data from chunks
+    let encoded = '';
     for (let i = 0; i < chunks; i++) {
       const chunk = getCookie(`${COOKIE_NAME}_${i}`);
       if (!chunk) {
         console.warn(`Missing chunk ${i}`);
         return null;
       }
-      compressed += chunk;
+      encoded += chunk;
     }
 
-    const decompressed = decompressString(compressed);
-    const state = JSON.parse(decompressed) as GameState;
+    const decoded = decodeString(encoded);
+    const state = JSON.parse(decoded) as GameState;
     
     return state;
   } catch (e) {
@@ -138,7 +139,9 @@ export function clearStateCookies(): void {
 function setCookie(name: string, value: string, days: number): void {
   const expires = new Date();
   expires.setTime(expires.getTime() + days * 24 * 60 * 60 * 1000);
-  document.cookie = `${name}=${value};expires=${expires.toUTCString()};path=/;SameSite=Strict`;
+  const isSecure = window.location.protocol === 'https:';
+  const secureFlag = isSecure ? ';Secure' : '';
+  document.cookie = `${name}=${value};expires=${expires.toUTCString()};path=/;SameSite=Strict${secureFlag}`;
 }
 
 /**
@@ -159,5 +162,7 @@ function getCookie(name: string): string | null {
  * Delete a cookie
  */
 function deleteCookie(name: string): void {
-  document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/;`;
+  const isSecure = window.location.protocol === 'https:';
+  const secureFlag = isSecure ? ';Secure' : '';
+  document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/;SameSite=Strict${secureFlag}`;
 }
