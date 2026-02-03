@@ -532,7 +532,11 @@ function gameReducer(state: GameState, action: Action): GameState {
         
         if (selectedEvent && selectedEvent.requiredGuards) {
           const requiredDefenders = selectedEvent.requiredGuards(totalPop);
-          const canDefend = guards >= requiredDefenders;
+          // Calculate effective defense strength using guardCoverage (includes defensive building bonuses)
+          // Each guard's effectiveness is multiplied by guardCoverage
+          const effectiveDefenseStrength = guards * guardCoverage;
+          const requiredDefenseStrength = requiredDefenders * baseCoverage; // Base requirement
+          const canDefend = effectiveDefenseStrength >= requiredDefenseStrength;
           
           if (canDefend && selectedEvent.successMessage && selectedEvent.successDeltas) {
             // Successfully defended
