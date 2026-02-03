@@ -7,6 +7,11 @@ export const WEEKS_PER_YEAR = 52;
 export const MAX_YEARS = 10;
 export const GAME_END_TICK = WEEKS_PER_YEAR * MAX_YEARS;
 
+// Resource Limits
+// Maximum food value for game balance and to prevent display/chart issues
+// Food accumulates fastest (produced every week per farmer) while other resources have natural consumption sinks
+export const MAX_GAME_FOOD = 999_999; // Cap at a reasonable game balance limit
+
 // Season Boundaries (Week of Year)
 export const SEASON_BOUNDS = {
   SPRING_END: 13,
@@ -90,12 +95,20 @@ export const BUILDING_COSTS = {
 };
 
 // Trade Rates (Resource amount per transaction)
-export const TRADE_AMOUNT = 10;
+export const TRADE_AMOUNT = 50; // Increased from 10 for more useful trading
 export const TRADE_RATES = {
-    food: { buy: 5, sell: 2 }, 
-    wood: { buy: 10, sell: 4 },
-    stone: { buy: 25, sell: 10 } 
+    food: { buy: 20, sell: 8 },  // Increased proportionally with TRADE_AMOUNT
+    wood: { buy: 40, sell: 16 },
+    stone: { buy: 100, sell: 40 } 
 };
+
+// Dynamic Trade Pricing Thresholds
+export const TRADE_PRICE_THRESHOLDS = {
+  food: 100, // Weekly food production for 1.0x price modifier
+  wood: 100, // Weekly wood production for 1.0x price modifier
+  stone: 50  // Weekly stone production for 1.0x price modifier
+};
+export const TRADE_PRICE_BASE_MODIFIER = 1.5; // Base for calculating price modifiers
 
 // Building Maintenance Costs (per week)
 export const BUILDING_MAINTENANCE = {

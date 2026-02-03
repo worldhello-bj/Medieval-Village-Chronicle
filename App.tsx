@@ -6,7 +6,8 @@ import {
   CONSUMPTION, GUARD_COVERAGE_BASE, GUARD_COVERAGE_UPGRADED, TECH_TREE, 
   FARMER_WEEKLY_BASE, WINTER_WOOD_CONSUMPTION, WALL_GUARD_BONUS,
   WEEKS_PER_YEAR, SEASON_BOUNDS, MAX_YEARS, GAME_END_TICK, DIFFICULTY_SETTINGS,
-  TRADE_RATES, TRADE_AMOUNT, BUILDING_MAINTENANCE
+  TRADE_RATES, TRADE_AMOUNT, BUILDING_MAINTENANCE, MAX_GAME_FOOD,
+  TRADE_PRICE_THRESHOLDS, TRADE_PRICE_BASE_MODIFIER
 } from './constants';
 import { generateInitialPopulation, generateVillager } from './utils/gameHelper';
 import { generateAIEventsBatch, getFixedEvents, getMilitaryEventTemplates, generateEndingSummary, determineEndingType } from './services/geminiService';
@@ -65,11 +66,12 @@ const initialState: GameState = {
   population: [],
   logs: [],
   paused: true,
-  gameSpeed: 500, // Slower tick speed because 1 tick is now 1 week (more impactful)
+  gameSpeed: 800, // Slower tick speed for better gameplay pacing (increased from 500ms)
   history: [],
   stats: initialStats,
   eventPool: [], // Initialize empty event pool
-  foodPriority: FoodPriority.Equal // Default to equal distribution
+  foodPriority: FoodPriority.Equal, // Default to equal distribution
+  tradePriceModifiers: { food: 1.0, wood: 1.0, stone: 1.0 } // Base multipliers for dynamic pricing
 };
 
 function gameReducer(state: GameState, action: Action): GameState {
@@ -298,18 +300,23 @@ function gameReducer(state: GameState, action: Action): GameState {
         if (state.buildings.markets < 1) return state;
         const { resource, action: tradeAction } = action;
         const rates = TRADE_RATES[resource];
+        const priceModifier = state.tradePriceModifiers?.[resource] || 1.0;
         const newResources = { ...state.resources };
         
         if (tradeAction === 'buy') {
-            if (newResources.gold >= rates.buy) {
-                newResources.gold -= rates.buy;
+            // Higher price when buying (base price * modifier)
+            const buyPrice = Math.ceil(rates.buy * priceModifier);
+            if (newResources.gold >= buyPrice) {
+                newResources.gold -= buyPrice;
                 newResources[resource] += TRADE_AMOUNT;
                 return { ...state, resources: newResources };
             }
         } else if (tradeAction === 'sell') {
+            // Lower price when selling (base price * modifier)
+            const sellPrice = Math.floor(rates.sell * priceModifier);
             if (newResources[resource] >= TRADE_AMOUNT) {
                 newResources[resource] -= TRADE_AMOUNT;
-                newResources.gold += rates.sell;
+                newResources.gold += sellPrice;
                 return { ...state, resources: newResources };
             }
         }
@@ -735,7 +742,7 @@ function gameReducer(state: GameState, action: Action): GameState {
 
         // Calculate food shortage for this villager
         const foodNeed = v.age < 16 ? CONSUMPTION.childFood : CONSUMPTION.food;
-        const adjustedNeed = round2(foodNeed * settings.consumptionRate * granaryReduction);
+        const adjustedNeed = round2(foodNeed * settings.consumptionRate * granaryReduction * preservationReduction);
         const foodReceived = foodAllocation.get(v.id) || 0;
         const foodShortageRatio = round2(Math.max(0, 1 - (foodReceived / adjustedNeed)));
         
@@ -847,7 +854,18 @@ function gameReducer(state: GameState, action: Action): GameState {
       }
 
       // --- Update History & Stats ---
-      const newHistory = [...state.history, { tick: state.tick, pop: survivors.length, food: round2(finalFood) }].slice(-520); // Keep 10 years of weekly history
+      // Keep limited history to prevent memory issues with chart rendering
+      // Store food as integer to reduce memory footprint
+      // Sample less frequently when history is large to prevent memory overflow
+      const shouldRecordHistory = state.history.length < 200 || state.tick % 2 === 0; // Record every tick until 200 entries, then every other tick
+      
+      const newHistory = shouldRecordHistory 
+        ? [...state.history, { 
+            tick: state.tick, 
+            pop: survivors.length, 
+            food: Math.floor(finalFood) // Store as integer to reduce memory usage
+          }].slice(-260) // Keep 5 years of weekly history (reduced from 10 years to prevent memory issues)
+        : state.history;
 
       // Count starvation - if anyone has food shortage
       const isAnyoneStarving = availableFood < totalConsumption;
@@ -919,12 +937,26 @@ function gameReducer(state: GameState, action: Action): GameState {
         });
       }
 
+      // --- Dynamic Trade Pricing Based on Production Capacity ---
+      // Calculate price modifiers based on village's production capacity
+      // Production above threshold = lower prices (surplus), below threshold = higher prices (scarcity)
+      const baseFoodProduction = activeFarmers * FARMER_WEEKLY_BASE * foodMultiplier;
+      const baseWoodProduction = state.population.filter(p => p.job === Job.Lumberjack).length * JOB_INCOME.lumberjack.wood;
+      const baseStoneProduction = state.population.filter(p => p.job === Job.Miner).length * JOB_INCOME.miner.stone;
+      
+      // Calculate modifiers: 0.5x (high production) to 2.0x (low production)
+      // At threshold production, modifier = 1.0x (base price)
+      const foodPriceModifier = round2(Math.max(0.5, Math.min(2.0, TRADE_PRICE_BASE_MODIFIER - (baseFoodProduction / TRADE_PRICE_THRESHOLDS.food))));
+      const woodPriceModifier = round2(Math.max(0.5, Math.min(2.0, TRADE_PRICE_BASE_MODIFIER - (baseWoodProduction / TRADE_PRICE_THRESHOLDS.wood))));
+      const stonePriceModifier = round2(Math.max(0.5, Math.min(2.0, TRADE_PRICE_BASE_MODIFIER - (baseStoneProduction / TRADE_PRICE_THRESHOLDS.stone))));
+
       return {
         ...state,
         tick: state.tick + 1,
         season: currentSeason,
         resources: {
-          food: round2(Math.max(0, finalFood + invasionLosses.food + invasionBonuses.food)),
+          // Cap food at MAX_GAME_FOOD for game balance (see constants.ts for rationale)
+          food: round2(Math.min(MAX_GAME_FOOD, Math.max(0, finalFood + invasionLosses.food + invasionBonuses.food))),
           wood: round2(Math.max(0, state.resources.wood + producedWood - consumedWood - maintenanceWood + invasionLosses.wood + invasionBonuses.wood)),
           stone: round2(Math.max(0, state.resources.stone + producedStone - maintenanceStone)),
           gold: round2(Math.max(0, state.resources.gold + producedGold - theftGold - maintenanceGold + invasionLosses.gold + invasionBonuses.gold)),
@@ -934,7 +966,8 @@ function gameReducer(state: GameState, action: Action): GameState {
         logs: newLogs,
         buildings: state.buildings, 
         history: newHistory,
-        stats: newStats
+        stats: newStats,
+        tradePriceModifiers: { food: foodPriceModifier, wood: woodPriceModifier, stone: stonePriceModifier }
       };
     }
     default:

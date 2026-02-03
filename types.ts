@@ -134,6 +134,7 @@ export interface GameState {
   stats: GameStats;
   eventPool: GameEvent[]; // Pool of available events (mixed AI and fixed)
   foodPriority: FoodPriority; // Food distribution priority setting
+  tradePriceModifiers?: { food: number; wood: number; stone: number }; // Dynamic price modifiers (1.0 = base price)
   endingSummary?: string; // AI-generated ending summary
   endingType?: string; // Type of ending achieved
   endingReason?: string; // Reason for the ending (e.g., '军事不足', '人口灭绝')
