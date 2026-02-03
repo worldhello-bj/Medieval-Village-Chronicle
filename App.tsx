@@ -21,6 +21,7 @@ import { VillagerModal } from './components/VillagerModal';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { GiTrophyCup, GiSkullCrossedBones, GiBabyFace, GiWheat, GiCrown } from 'react-icons/gi';
 import { saveStateToStorage, loadStateFromStorage, clearStateStorage } from './utils/gameStorage';
+import { clearStateCookies } from './utils/cookieStorage';
 
 
 // Happiness-based productivity constants
@@ -1152,6 +1153,12 @@ export default function App() {
   const [state, dispatch] = useReducer(gameReducer, initialState);
   const [selectedVillager, setSelectedVillager] = useState<Villager | null>(null);
 
+  // Clean up old cookies on first mount (one-time cleanup to fix HTTP 431 issue)
+  useEffect(() => {
+    console.log('Cleaning up legacy cookies from previous version...');
+    clearStateCookies();
+  }, []);
+
   // Load state from localStorage on mount
   useEffect(() => {
     const savedState = loadStateFromStorage();
@@ -1176,6 +1183,8 @@ export default function App() {
   useEffect(() => {
     if (state.status === GameStatus.Menu && state.tick === 0) {
       clearStateStorage();
+      // Also ensure cookies are cleared
+      clearStateCookies();
     }
   }, [state.status, state.tick]);
 
