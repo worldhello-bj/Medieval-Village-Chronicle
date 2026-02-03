@@ -20,6 +20,9 @@ import { EventLog } from './components/EventLog';
 import { VillagerModal } from './components/VillagerModal';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { GiTrophyCup, GiSkullCrossedBones, GiBabyFace, GiWheat, GiCrown } from 'react-icons/gi';
+import { saveStateToStorage, loadStateFromStorage, clearStateStorage } from './utils/gameStorage';
+import { clearStateCookies } from './utils/cookieStorage';
+
 
 // Happiness-based productivity constants
 const MIN_PRODUCTIVITY = 0.1; // 10% minimum productivity
@@ -41,6 +44,7 @@ type Action =
   | { type: 'TRADE_RESOURCE'; resource: 'food' | 'wood' | 'stone'; action: 'buy' | 'sell' }
   | { type: 'SET_FOOD_PRIORITY'; priority: FoodPriority }
   | { type: 'UPDATE_ENDING_SUMMARY'; summary: string }
+  | { type: 'LOAD_STATE'; state: GameState }
   | { type: 'RESTART_GAME' };
 
 const initialStats = {
@@ -192,6 +196,9 @@ function gameReducer(state: GameState, action: Action): GameState {
         eventPool: newEventPool
       };
     }
+
+    case 'LOAD_STATE':
+      return action.state;
 
     case 'RESTART_GAME':
       return initialState;
@@ -527,7 +534,11 @@ function gameReducer(state: GameState, action: Action): GameState {
         
         if (selectedEvent && selectedEvent.requiredGuards) {
           const requiredDefenders = selectedEvent.requiredGuards(totalPop);
-          const canDefend = guards >= requiredDefenders;
+          // Calculate effective defense strength using guardCoverage (includes defensive building bonuses)
+          // Each guard's effectiveness is multiplied by guardCoverage
+          const effectiveDefenseStrength = guards * guardCoverage;
+          const requiredDefenseStrength = requiredDefenders * baseCoverage; // Base requirement
+          const canDefend = effectiveDefenseStrength >= requiredDefenseStrength;
           
           if (canDefend && selectedEvent.successMessage && selectedEvent.successDeltas) {
             // Successfully defended
@@ -941,8 +952,8 @@ function gameReducer(state: GameState, action: Action): GameState {
       // Calculate price modifiers based on village's production capacity
       // Production above threshold = lower prices (surplus), below threshold = higher prices (scarcity)
       const baseFoodProduction = activeFarmers * FARMER_WEEKLY_BASE * foodMultiplier;
-      const baseWoodProduction = state.population.filter(p => p.job === Job.Lumberjack).length * JOB_INCOME.lumberjack.wood;
-      const baseStoneProduction = state.population.filter(p => p.job === Job.Miner).length * JOB_INCOME.miner.stone;
+      const baseWoodProduction = state.population.filter(p => p.job === Job.Woodcutter).length * JOB_INCOME[Job.Woodcutter].wood;
+      const baseStoneProduction = state.population.filter(p => p.job === Job.Miner).length * JOB_INCOME[Job.Miner].stone;
       
       // Calculate modifiers: 0.5x (high production) to 2.0x (low production)
       // At threshold production, modifier = 1.0x (base price)
@@ -963,7 +974,7 @@ function gameReducer(state: GameState, action: Action): GameState {
           knowledge: round2(state.resources.knowledge + producedKnowledge)
         },
         population: survivors,
-        logs: newLogs,
+        logs: newLogs.slice(-1000), // Cap logs to last 1000 entries to prevent memory issues
         buildings: state.buildings, 
         history: newHistory,
         stats: newStats,
@@ -1141,6 +1152,43 @@ const EndScreen: React.FC<{ state: GameState, onRestart: () => void }> = ({ stat
 export default function App() {
   const [state, dispatch] = useReducer(gameReducer, initialState);
   const [selectedVillager, setSelectedVillager] = useState<Villager | null>(null);
+
+  // Clean up old cookies on first mount (one-time cleanup to fix HTTP 431 issue)
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Cleaning up legacy cookies from previous version...');
+    }
+    clearStateCookies();
+  }, []);
+
+  // Load state from localStorage on mount
+  useEffect(() => {
+    const savedState = loadStateFromStorage();
+    if (savedState) {
+      console.log('Loading saved game from localStorage...');
+      dispatch({ type: 'LOAD_STATE', state: savedState });
+    }
+  }, []);
+
+  // Save state to localStorage periodically during gameplay
+  useEffect(() => {
+    if (state.status === GameStatus.Playing && !state.paused) {
+      // Save every 20 ticks (approximately every 16 seconds at 800ms per tick)
+      // This reduces overhead while still providing reasonable save frequency
+      if (state.tick % 20 === 0) {
+        saveStateToStorage(state);
+      }
+    }
+  }, [state.tick, state.status, state.paused]);
+
+  // Clear storage on restart
+  useEffect(() => {
+    if (state.status === GameStatus.Menu && state.tick === 0) {
+      clearStateStorage();
+      // Also ensure cookies are cleared
+      clearStateCookies();
+    }
+  }, [state.status, state.tick]);
 
   useEffect(() => {
     const timer = setInterval(() => {

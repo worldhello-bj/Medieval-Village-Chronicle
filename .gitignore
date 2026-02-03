@@ -27,3 +27,7 @@ server/package-lock.json
 *.sln
 *.sw?
 test_*.js
+
+# Test files
+test-cookie.html
+tests/
