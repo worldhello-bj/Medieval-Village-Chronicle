@@ -9,10 +9,34 @@ import { GameState } from '../types';
 const STORAGE_KEY = 'medieval_village_state';
 
 /**
+ * Check if localStorage is available
+ * localStorage may not be available in:
+ * - file:// protocol (opened directly from file system)
+ * - Private browsing modes
+ * - Some browsers with strict privacy settings
+ */
+function isLocalStorageAvailable(): boolean {
+  try {
+    const test = '__localStorage_test__';
+    localStorage.setItem(test, test);
+    localStorage.removeItem(test);
+    return true;
+  } catch (e) {
+    console.warn('localStorage is not available:', e);
+    return false;
+  }
+}
+
+/**
  * Save game state to localStorage
  * Limits logs to prevent excessive size
  */
 export function saveStateToStorage(state: GameState): boolean {
+  if (!isLocalStorageAvailable()) {
+    console.warn('Cannot save state: localStorage is not available');
+    return false;
+  }
+
   try {
     // Create a lighter version of state - only keep last 500 logs
     const stateToSave = {
@@ -44,6 +68,11 @@ export function saveStateToStorage(state: GameState): boolean {
  * Load game state from localStorage
  */
 export function loadStateFromStorage(): GameState | null {
+  if (!isLocalStorageAvailable()) {
+    console.warn('Cannot load state: localStorage is not available');
+    return null;
+  }
+
   try {
     const stateJson = localStorage.getItem(STORAGE_KEY);
     if (!stateJson) {
@@ -62,6 +91,11 @@ export function loadStateFromStorage(): GameState | null {
  * Clear state from localStorage
  */
 export function clearStateStorage(): void {
+  if (!isLocalStorageAvailable()) {
+    console.warn('Cannot clear state: localStorage is not available');
+    return;
+  }
+
   try {
     localStorage.removeItem(STORAGE_KEY);
   } catch (e) {
