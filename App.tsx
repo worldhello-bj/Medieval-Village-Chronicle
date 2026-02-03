@@ -946,8 +946,8 @@ function gameReducer(state: GameState, action: Action): GameState {
       // Calculate price modifiers based on village's production capacity
       // Production above threshold = lower prices (surplus), below threshold = higher prices (scarcity)
       const baseFoodProduction = activeFarmers * FARMER_WEEKLY_BASE * foodMultiplier;
-      const baseWoodProduction = state.population.filter(p => p.job === Job.Lumberjack).length * JOB_INCOME.lumberjack.wood;
-      const baseStoneProduction = state.population.filter(p => p.job === Job.Miner).length * JOB_INCOME.miner.stone;
+      const baseWoodProduction = state.population.filter(p => p.job === Job.Woodcutter).length * JOB_INCOME[Job.Woodcutter].wood;
+      const baseStoneProduction = state.population.filter(p => p.job === Job.Miner).length * JOB_INCOME[Job.Miner].stone;
       
       // Calculate modifiers: 0.5x (high production) to 2.0x (low production)
       // At threshold production, modifier = 1.0x (base price)
