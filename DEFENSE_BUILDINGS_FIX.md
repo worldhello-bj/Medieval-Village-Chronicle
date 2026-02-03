@@ -29,7 +29,7 @@ The game already calculated these bonuses (for security system) but ignored them
 - **军营 (Barracks)**: 每座军营 +2 覆盖范围
 - **训练场 (Training Grounds)**: 每座训练场 +2 覆盖范围
 - **马厩 (Stables)** (需要骑兵科技): 每座马厩 +3 覆盖范围
-- **箭术科技 (Archery Tech)**: 基础覆盖 10 → 15
+- **箭术科技 (Archery Tech)**: 基础覆盖 10 -> 15
 
 这些加成在 `guardCoverage` 变量中计算（Line 494），但只用于治安系统，不用于袭击防御。
 
