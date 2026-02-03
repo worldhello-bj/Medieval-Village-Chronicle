@@ -20,6 +20,7 @@ import { EventLog } from './components/EventLog';
 import { VillagerModal } from './components/VillagerModal';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { GiTrophyCup, GiSkullCrossedBones, GiBabyFace, GiWheat, GiCrown } from 'react-icons/gi';
+import { saveStateToCookie, loadStateFromCookie, clearStateCookies } from './utils/cookieStorage';
 
 // Happiness-based productivity constants
 const MIN_PRODUCTIVITY = 0.1; // 10% minimum productivity
@@ -41,6 +42,7 @@ type Action =
   | { type: 'TRADE_RESOURCE'; resource: 'food' | 'wood' | 'stone'; action: 'buy' | 'sell' }
   | { type: 'SET_FOOD_PRIORITY'; priority: FoodPriority }
   | { type: 'UPDATE_ENDING_SUMMARY'; summary: string }
+  | { type: 'LOAD_STATE'; state: GameState }
   | { type: 'RESTART_GAME' };
 
 const initialStats = {
@@ -192,6 +194,9 @@ function gameReducer(state: GameState, action: Action): GameState {
         eventPool: newEventPool
       };
     }
+
+    case 'LOAD_STATE':
+      return action.state;
 
     case 'RESTART_GAME':
       return initialState;
@@ -963,7 +968,7 @@ function gameReducer(state: GameState, action: Action): GameState {
           knowledge: round2(state.resources.knowledge + producedKnowledge)
         },
         population: survivors,
-        logs: newLogs,
+        logs: newLogs.slice(-1000), // Cap logs to last 1000 entries to prevent memory issues
         buildings: state.buildings, 
         history: newHistory,
         stats: newStats,
@@ -1141,6 +1146,32 @@ const EndScreen: React.FC<{ state: GameState, onRestart: () => void }> = ({ stat
 export default function App() {
   const [state, dispatch] = useReducer(gameReducer, initialState);
   const [selectedVillager, setSelectedVillager] = useState<Villager | null>(null);
+
+  // Load state from cookie on mount
+  useEffect(() => {
+    const savedState = loadStateFromCookie();
+    if (savedState) {
+      console.log('Loading saved game from cookie...');
+      dispatch({ type: 'LOAD_STATE', state: savedState });
+    }
+  }, []);
+
+  // Save state to cookie periodically during gameplay
+  useEffect(() => {
+    if (state.status === GameStatus.Playing && !state.paused) {
+      // Save every 5 ticks to reduce overhead
+      if (state.tick % 5 === 0) {
+        saveStateToCookie(state);
+      }
+    }
+  }, [state.tick, state.status, state.paused]);
+
+  // Clear cookies on restart
+  useEffect(() => {
+    if (state.status === GameStatus.Menu && state.tick === 0) {
+      clearStateCookies();
+    }
+  }, [state.status, state.tick]);
 
   useEffect(() => {
     const timer = setInterval(() => {
