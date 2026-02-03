@@ -125,7 +125,7 @@ const savedState = loadStateFromStorage() || loadStateFromCookie();
 |---------|---------|--------------|
 | Capacity | ~4KB per cookie, max ~80KB | ~5-10MB total |
 | Network | Sent with every request | Never sent |
-| HTTP 431 Risk | ✅ Yes (caused this issue) | ❌ No |
+| HTTP 431 Risk | ❌ Yes (caused this issue) | ✅ No |
 | Complexity | High (chunking, encoding) | Low (simple key-value) |
 | Persistence | Yes (with expiry) | Yes (permanent until cleared) |
 | Security | SameSite, Secure flags | Same-origin policy |

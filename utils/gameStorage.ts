@@ -1,5 +1,5 @@
 /**
- * LocalStorage Storage Utility
+ * Game State Storage Utility
  * Provides functions to save and load game state from localStorage
  * This replaces cookie storage to avoid HTTP 431 errors from large cookie headers
  */
