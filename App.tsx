@@ -1155,7 +1155,9 @@ export default function App() {
 
   // Clean up old cookies on first mount (one-time cleanup to fix HTTP 431 issue)
   useEffect(() => {
-    console.log('Cleaning up legacy cookies from previous version...');
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Cleaning up legacy cookies from previous version...');
+    }
     clearStateCookies();
   }, []);
 

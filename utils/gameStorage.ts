@@ -17,9 +17,9 @@ const STORAGE_KEY = 'medieval_village_state';
  */
 function isLocalStorageAvailable(): boolean {
   try {
-    const test = '__localStorage_test__';
-    localStorage.setItem(test, test);
-    localStorage.removeItem(test);
+    const testKey = '__localStorage_test__';
+    localStorage.setItem(testKey, testKey);
+    localStorage.removeItem(testKey);
     return true;
   } catch (e) {
     console.warn('localStorage is not available:', e);
