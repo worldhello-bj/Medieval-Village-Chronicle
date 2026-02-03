@@ -20,7 +20,8 @@ import { EventLog } from './components/EventLog';
 import { VillagerModal } from './components/VillagerModal';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { GiTrophyCup, GiSkullCrossedBones, GiBabyFace, GiWheat, GiCrown } from 'react-icons/gi';
-import { saveStateToCookie, loadStateFromCookie, clearStateCookies } from './utils/cookieStorage';
+import { saveStateToStorage, loadStateFromStorage, clearStateStorage } from './utils/gameStorage';
+
 
 // Happiness-based productivity constants
 const MIN_PRODUCTIVITY = 0.1; // 10% minimum productivity
@@ -1151,30 +1152,30 @@ export default function App() {
   const [state, dispatch] = useReducer(gameReducer, initialState);
   const [selectedVillager, setSelectedVillager] = useState<Villager | null>(null);
 
-  // Load state from cookie on mount
+  // Load state from localStorage on mount
   useEffect(() => {
-    const savedState = loadStateFromCookie();
+    const savedState = loadStateFromStorage();
     if (savedState) {
-      console.log('Loading saved game from cookie...');
+      console.log('Loading saved game from localStorage...');
       dispatch({ type: 'LOAD_STATE', state: savedState });
     }
   }, []);
 
-  // Save state to cookie periodically during gameplay
+  // Save state to localStorage periodically during gameplay
   useEffect(() => {
     if (state.status === GameStatus.Playing && !state.paused) {
       // Save every 20 ticks (approximately every 16 seconds at 800ms per tick)
       // This reduces overhead while still providing reasonable save frequency
       if (state.tick % 20 === 0) {
-        saveStateToCookie(state);
+        saveStateToStorage(state);
       }
     }
   }, [state.tick, state.status, state.paused]);
 
-  // Clear cookies on restart
+  // Clear storage on restart
   useEffect(() => {
     if (state.status === GameStatus.Menu && state.tick === 0) {
-      clearStateCookies();
+      clearStateStorage();
     }
   }, [state.status, state.tick]);
 
