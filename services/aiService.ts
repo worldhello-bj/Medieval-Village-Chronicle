@@ -391,6 +391,29 @@ export const updateVillagerChronicle = async (villager: Villager, year: number, 
   }
 };
 
+// Generate batch chronicle entries for multiple villagers
+export const generateBioBatch = async (villagers: Villager[], year: number, villageStatus: { isStarving: boolean; population: number }): Promise<Record<string, string> | null> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/generate-bio-batch`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ villagers, year, villageStatus }),
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      console.log(`AI Batch Chronicle generated for ${villagers.length} villagers`);
+      return data.bios;
+    }
+    return null;
+  } catch (error: any) {
+    console.warn('Backend API error for batch chronicle:', error.message);
+    return null;
+  }
+};
+
 // Generate AI-powered ending summary
 export const generateEndingSummary = async (state: GameState, endingType: string, endingReason?: string): Promise<string> => {
   try {

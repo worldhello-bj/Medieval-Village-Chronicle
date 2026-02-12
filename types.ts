@@ -59,6 +59,29 @@ export interface Villager {
   lastBioYear?: number; // Last year for which a bio entry was generated
 }
 
+export type BuildingType = 
+  | 'House' 
+  | 'Market' 
+  | 'StoneWall' 
+  | 'Library' 
+  | 'Tavern' 
+  | 'Cathedral' 
+  | 'Farm' 
+  | 'LumberMill' 
+  | 'Mine' 
+  | 'Watchtower' 
+  | 'Granary' 
+  | 'Blacksmith' 
+  | 'Temple' 
+  | 'University' 
+  | 'Workshop' 
+  | 'Barracks' 
+  | 'Stables' 
+  | 'Aqueduct' 
+  | 'TrainingGrounds' 
+  | 'Alchemist' 
+  | 'Festival';
+
 export interface Buildings {
   houses: number; // Increases population cap
   markets: number; // Allows festivals
@@ -147,5 +170,23 @@ export interface LogEntry {
   message: string;
   type: 'info' | 'warning' | 'danger' | 'success' | 'ai' | 'tech';
 }
+
+export type GameAction = 
+  | { type: 'START_GAME'; difficulty: Difficulty }
+  | { type: 'INIT_EVENT_POOL'; events: GameEvent[] }
+  | { type: 'REPLENISH_EVENT_POOL'; events: GameEvent[] }
+  | { type: 'TICK' }
+  | { type: 'TOGGLE_PAUSE' }
+  | { type: 'ASSIGN_JOB'; job: Job; amount: number }
+  | { type: 'UPDATE_BIO'; id: string; bio: string; year?: number }
+  | { type: 'TRIGGER_EVENT'; eventId: string }
+  | { type: 'CONSTRUCT_BUILDING'; building: BuildingType }
+  | { type: 'HOLD_FESTIVAL' }
+  | { type: 'RESEARCH_TECH'; techId: string }
+  | { type: 'TRADE_RESOURCE'; resource: 'food' | 'wood' | 'stone'; action: 'buy' | 'sell' }
+  | { type: 'SET_FOOD_PRIORITY'; priority: FoodPriority }
+  | { type: 'UPDATE_ENDING_SUMMARY'; summary: string }
+  | { type: 'LOAD_STATE'; state: GameState }
+  | { type: 'RESTART_GAME' };
 
 export const INITIAL_POPULATION_SIZE = 20; // Start smaller to emphasize growth mechanics

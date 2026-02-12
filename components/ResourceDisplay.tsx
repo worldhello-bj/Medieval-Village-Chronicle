@@ -48,12 +48,17 @@ export const ResourceDisplay: React.FC<ResourceDisplayProps> = ({ state }) => {
 
   const guardCount = state.population.filter(p => p.job === Job.Guard).length;
   const totalPop = state.population.length;
-  const requiredGuards = Math.max(1, Math.ceil(totalPop / guardCoverage));
-  const isSecure = guardCount >= requiredGuards;
+  
+  // Calculate defense values
+  const currentDefense = guardCount * guardCoverage;
+  // Required defense is based on total population (1 guard covers X people, so we need enough defense to cover totalPop)
+  const requiredDefense = totalPop;
+  
+  const isSecure = currentDefense >= requiredDefense;
   
   // Calculate percentage based on coverage vs population
   // If pop is 0, security is 100%
-  const securityPercent = totalPop === 0 ? 100 : Math.min(100, Math.floor((guardCount * guardCoverage / totalPop) * 100));
+  const securityPercent = totalPop === 0 ? 100 : Math.min(100, Math.floor((currentDefense / totalPop) * 100));
 
   // Calculate next invasion info
   // Invasions occur every 15 weeks when tick % 15 === 0
@@ -65,24 +70,38 @@ export const ResourceDisplay: React.FC<ResourceDisplayProps> = ({ state }) => {
   let threatLevel = '';
   let minRequiredGuards = 0;
   let maxRequiredGuards = 0;
+  let threatColor = 'text-green-400';
+  let threatBorderColor = 'border-green-600';
   
   if (totalPop < 15) {
     threatLevel = '低';
+    threatColor = 'text-green-400';
+    threatBorderColor = 'border-green-600';
     minRequiredGuards = Math.max(2, Math.ceil(totalPop * 0.1));
     maxRequiredGuards = minRequiredGuards;
   } else if (totalPop < 30) {
     threatLevel = '中';
+    threatColor = 'text-yellow-400';
+    threatBorderColor = 'border-yellow-600';
     minRequiredGuards = Math.max(2, Math.ceil(totalPop * 0.1));
     maxRequiredGuards = Math.max(3, Math.ceil(totalPop * 0.15));
   } else if (totalPop < 50) {
     threatLevel = '高';
+    threatColor = 'text-orange-400';
+    threatBorderColor = 'border-orange-600';
     minRequiredGuards = Math.max(2, Math.ceil(totalPop * 0.1));
     maxRequiredGuards = Math.max(4, Math.ceil(totalPop * 0.2));
   } else {
     threatLevel = '极高';
+    threatColor = 'text-red-400';
+    threatBorderColor = 'border-red-600';
     minRequiredGuards = Math.max(2, Math.ceil(totalPop * 0.1));
     maxRequiredGuards = Math.max(5, Math.ceil(totalPop * 0.25));
   }
+  
+  // Convert min/max guards to defense value using base coverage to keep requirement standard
+  const minRequiredDefense = minRequiredGuards * GUARD_COVERAGE_BASE;
+  const maxRequiredDefense = maxRequiredGuards * GUARD_COVERAGE_BASE;
 
   // Calculate average happiness
   const avgHappiness = totalPop > 0 
@@ -109,8 +128,8 @@ export const ResourceDisplay: React.FC<ResourceDisplayProps> = ({ state }) => {
         <ResourceItem icon={<GiScrollQuill />} value={Math.floor(state.resources.knowledge)} label="知识" color="text-blue-400" />
         <ResourceItem 
           icon={<GiShield />} 
-          value={`${guardCount}/${requiredGuards}`}
-          label="治安" 
+          value={`${currentDefense}/${requiredDefense}`}
+          label="防御" 
           color={isSecure ? "text-emerald-400" : "text-red-500"} 
           subLabel={`${securityPercent}%`}
         />
@@ -131,44 +150,34 @@ export const ResourceDisplay: React.FC<ResourceDisplayProps> = ({ state }) => {
       
       {/* Invasion Warning */}
       {showInvasionWarning && totalPop > 5 && (
-        <div className={`bg-stone-800 px-3 py-2 rounded border ${
-          guardCount >= minRequiredGuards ? 'border-yellow-600' : 'border-red-600'
-        } flex items-center gap-3`}>
-          <GiCrossedSwords className={`text-2xl ${
-            guardCount >= minRequiredGuards ? 'text-yellow-500' : 'text-red-500'
-          }`} />
+        <div className={`bg-stone-800 px-3 py-2 rounded border ${threatBorderColor} flex items-center gap-3`}>
+          <span className={`text-2xl ${threatColor}`}><GiCrossedSwords /></span>
           <div className="flex-1">
             <div className="flex justify-between items-center">
               <span className="text-xs text-stone-400 uppercase tracking-widest">下波袭击</span>
-              <span className={`text-xs font-bold ${
-                guardCount >= minRequiredGuards ? 'text-yellow-500' : 'text-red-500'
-              }`}>
+              <span className={`text-xs font-bold ${threatColor}`}>
                 {weeksUntilInvasion}周后
               </span>
             </div>
             <div className="flex items-center gap-2 mt-1">
               <span className="text-sm text-stone-300">
-                威胁: <span className={`font-bold ${
-                  threatLevel === '极高' ? 'text-red-400' :
-                  threatLevel === '高' ? 'text-orange-400' :
-                  threatLevel === '中' ? 'text-yellow-400' : 'text-green-400'
-                }`}>{threatLevel}</span>
+                威胁: <span className={`font-bold ${threatColor}`}>{threatLevel}</span>
               </span>
               <span className="text-xs text-stone-400">|</span>
               <span className="text-sm text-stone-300">
-                需守卫: <span className={`font-bold ${
-                  guardCount >= minRequiredGuards ? 'text-emerald-400' : 'text-red-400'
+                需防御: <span className={`font-bold ${
+                  currentDefense >= minRequiredDefense ? 'text-emerald-400' : 'text-red-400'
                 }`}>
-                  {minRequiredGuards === maxRequiredGuards 
-                    ? `${minRequiredGuards}` 
-                    : `${minRequiredGuards}-${maxRequiredGuards}`}
+                  {minRequiredDefense === maxRequiredDefense 
+                    ? `${minRequiredDefense}` 
+                    : `${minRequiredDefense}-${maxRequiredDefense}`}
                 </span>
               </span>
               <span className="text-xs text-stone-400">|</span>
               <span className="text-sm text-stone-300">
                 当前: <span className={`font-bold ${
-                  guardCount >= minRequiredGuards ? 'text-emerald-400' : 'text-red-400'
-                }`}>{guardCount}</span>
+                  currentDefense >= minRequiredDefense ? 'text-emerald-400' : 'text-red-400'
+                }`}>{currentDefense}</span>
               </span>
             </div>
           </div>

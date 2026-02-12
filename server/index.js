@@ -180,6 +180,64 @@ app.post('/api/generate-bio', async (req, res) => {
   }
 });
 
+// API endpoint for generating batch villager bio chronicle entries
+app.post('/api/generate-bio-batch', async (req, res) => {
+  try {
+    const { villagers, year, villageStatus } = req.body;
+    
+    if (!villagers || !Array.isArray(villagers) || villagers.length === 0) {
+      return res.status(400).json({ error: 'Villagers array is required' });
+    }
+
+    const ai = getAI();
+    if (!ai) {
+      return res.status(503).json({ error: 'AI service not configured' });
+    }
+
+    // Construct a prompt for multiple villagers
+    const villagersDesc = villagers.map(v => 
+      `- ID: ${v.id}, 姓名: ${v.name}, 年龄: ${v.age}, 职业: ${v.job}, 健康: ${v.health}, 快乐: ${v.happiness}, 饥饿: ${v.hunger}`
+    ).join('\n');
+
+    const prompt = `请为以下 ${villagers.length} 位中世纪村民撰写第 ${year} 年的年度经历摘要（使用中文）。
+村庄状态: 人口 ${villageStatus.population}人, ${villageStatus.isStarving ? '正在挨饿' : '食物充足'}。
+
+请返回一个JSON对象，Key为村民ID，Value为该村民的年度经历（仅1句话）。
+
+村民列表:
+${villagersDesc}
+
+JSON格式示例:
+{
+  "id1": "[第X年] ...",
+  "id2": "[第X年] ..."
+}`;
+
+    const completion = await ai.chat.completions.create({
+      model: getModelName(),
+      messages: [{ role: 'user', content: prompt }],
+      temperature: AI_TEMPERATURE,
+      max_tokens: 2048,
+      response_format: { type: 'json_object' }
+    });
+
+    const content = completion.choices[0]?.message?.content;
+    if (!content) {
+      return res.status(500).json({ error: 'No response from AI' });
+    }
+
+    const bioMap = JSON.parse(content);
+    res.json({ bios: bioMap });
+
+  } catch (error) {
+    console.error('Error generating batch bio:', error);
+    if (error.status === 429 || error.code === 429) {
+      return res.status(429).json({ error: 'Rate limit exceeded' });
+    }
+    res.status(500).json({ error: 'Failed to generate batch bio' });
+  }
+});
+
 // API endpoint for generating game ending summary
 app.post('/api/generate-ending', async (req, res) => {
   try {

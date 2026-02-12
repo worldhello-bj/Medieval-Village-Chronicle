@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Villager, Season } from '../types';
-import { generateVillagerBio } from '../services/geminiService';
+import { generateVillagerBio } from '../services/aiService';
 import { GiQuill, GiHealthNormal, GiHearts, GiChickenLeg, GiBatteryPack } from 'react-icons/gi';
 
 interface VillagerModalProps {
