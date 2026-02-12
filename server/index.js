@@ -1,12 +1,16 @@
 import express from 'express';
 import cors from 'cors';
 import OpenAI from 'openai';
+import dotenv from 'dotenv';
+
+// Load environment variables from .env.local file
+dotenv.config({ path: '.env.local' });
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
 // AI Configuration constants
-const AI_TEMPERATURE = 1;
+const AI_TEMPERATURE = 0.5;
 const NVIDIA_MODEL = 'openai/gpt-oss-120b';
 const OPENAI_MODEL = 'gpt-4-turbo-preview';
 
@@ -63,12 +67,14 @@ app.post('/api/generate-event', async (req, res) => {
 食物库存: ${state.resources.food}
 平均幸福度: ${avgHappiness}
 
-请生成一个简短的、一句话的中世纪村庄随机事件（使用中文）。
-可以是正面的（节日、丰收、旅行者）或负面的（小病、风暴、物资丢失）。
-如果是负面事件，请不要太残酷，除非幸福度极低。
+请生成一个丰富、生动的中世纪村庄随机事件（使用中文）。
+不仅限于简单的丰收或灾害，可以包含更多叙事细节，如村民的互动、神秘的访客、自然界的奇观或社会风波。
+事件应当具有沉浸感，让玩家感受到村庄的鲜活。
+如果是负面事件，请不要太残酷，除非幸福度极低（<30）。
+如果是正面事件，可以根据季节和当前资源情况赋予更多色彩。
 
 请用JSON格式返回，包含以下字段：
-- message: 事件描述（中文）
+- message: 事件描述（中文，1-2句话，富有画面感）
 - type: 事件类型（info/warning/danger/success）
 - deltaFood: 食物变化（整数）
 - deltaWood: 木材变化（整数）
@@ -102,32 +108,58 @@ app.post('/api/generate-event', async (req, res) => {
   }
 });
 
-// API endpoint for generating villager bio
+// API endpoint for generating villager bio chronicle entry
 app.post('/api/generate-bio', async (req, res) => {
   try {
-    const { name, age, job, season } = req.body;
+    // Legacy support for simple bio generation if villager object is not present
+    const { villager, year, villageStatus, name, age, job, season } = req.body;
     
-    if (!name || !age || !job || !season) {
-      return res.status(400).json({ error: 'Name, age, job, and season are required' });
-    }
-
     const ai = getAI();
     if (!ai) {
       return res.status(503).json({ error: 'AI service not configured' });
     }
 
-    const prompt = `请为一个中世纪村民写一段2句话的简短背景故事（使用中文）。
+    let prompt = '';
+    
+    if (villager && year !== undefined) {
+      // Chronicle Mode
+      const { name, age, job, health, happiness, hunger, currentActivity } = villager;
+      const { isStarving, population } = villageStatus || {};
+      
+      prompt = `请为中世纪村民 ${name} 撰写第 ${year} 年的年度经历摘要（使用中文）。
+仅需写一句话，富含细节和沉浸感。
+
+村民档案:
+- 年龄: ${age}岁
+- 职业: ${job}
+- 健康状况: ${health}/100 ${health < 40 ? '(虚弱)' : ''}
+- 心理状态: ${happiness}/100 ${happiness < 40 ? '(沮丧)' : ''}
+- 饥饿程度: ${hunger}/100 ${hunger > 50 ? '(饥饿)' : ''}
+- 当前活动: ${currentActivity}
+
+环境背景:
+- 村庄人口: ${population}人
+- 粮食危机: ${isStarving ? '是' : '否'}
+
+请根据以上数据，推测 ${name} 这一年的生活。
+如果健康或快乐低，描述他们的挣扎；如果状态好，描述他们的成就或平静生活。
+如果村庄在挨饿，描述他们如何度过难关。
+格式示例："[第X年] 严冬中他不幸染病，但在家人的照料下顽强地挺了过来。"`;
+    } else {
+      // Legacy Mode (Fallback)
+      prompt = `请为一个中世纪村民写一段2句话的简短背景故事（使用中文）。
 风格可以是古怪的、幽默的或戏剧性的。
 姓名: ${name}
 年龄: ${age}
 职业: ${job}
 当前季节: ${season}`;
+    }
 
     const completion = await ai.chat.completions.create({
       model: getModelName(),
       messages: [{ role: 'user', content: prompt }],
       temperature: AI_TEMPERATURE,
-      max_tokens: 512
+      max_tokens: 256
     });
 
     const bio = completion.choices[0]?.message?.content;

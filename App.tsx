@@ -10,7 +10,7 @@ import {
   TRADE_PRICE_THRESHOLDS, TRADE_PRICE_BASE_MODIFIER
 } from './constants';
 import { generateInitialPopulation, generateVillager } from './utils/gameHelper';
-import { generateAIEventsBatch, getFixedEvents, getMilitaryEventTemplates, generateEndingSummary, determineEndingType } from './services/geminiService';
+import { generateAIEventsBatch, getFixedEvents, getMilitaryEventTemplates, generateEndingSummary, determineEndingType, updateVillagerChronicle } from './services/geminiService';
 import { round2 } from './utils/mathUtils';
 import { GameEvent } from './types';
 import { ResourceDisplay } from './components/ResourceDisplay';
@@ -36,7 +36,7 @@ type Action =
   | { type: 'TICK' }
   | { type: 'TOGGLE_PAUSE' }
   | { type: 'ASSIGN_JOB'; job: Job; amount: number }
-  | { type: 'UPDATE_BIO'; id: string; bio: string }
+  | { type: 'UPDATE_BIO'; id: string; bio: string; year?: number }
   | { type: 'TRIGGER_EVENT'; eventId: string }
   | { type: 'CONSTRUCT_BUILDING'; building: keyof typeof BUILDING_COSTS }
   | { type: 'HOLD_FESTIVAL' }
@@ -70,7 +70,7 @@ const initialState: GameState = {
   population: [],
   logs: [],
   paused: true,
-  gameSpeed: 800, // Slower tick speed for better gameplay pacing (increased from 500ms)
+  gameSpeed: 2000, // Reduced speed for better player reaction time (increased from 800ms)
   history: [],
   stats: initialStats,
   eventPool: [], // Initialize empty event pool
@@ -918,7 +918,7 @@ function gameReducer(state: GameState, action: Action): GameState {
       const buildingTypes = Object.keys(state.buildings) as (keyof typeof state.buildings)[];
       buildingTypes.forEach(buildingType => {
         const count = state.buildings[buildingType];
-        const maintenance = BUILDING_MAINTENANCE[buildingType];
+        const maintenance = BUILDING_MAINTENANCE[buildingType] as any;
         if (maintenance && count > 0) {
           maintenanceWood += round2((maintenance.wood || 0) * count);
           maintenanceStone += round2((maintenance.stone || 0) * count);
@@ -1080,23 +1080,23 @@ const EndScreen: React.FC<{ state: GameState, onRestart: () => void }> = ({ stat
 
                 <div className="grid grid-cols-2 gap-4 mb-8 text-sm font-mono text-stone-300">
                     <div className="bg-stone-900/50 p-4 rounded flex justify-between">
-                        <span><GiCrown className="inline mr-2 text-yellow-500"/>存活人口</span>
+                        <span><span className="inline mr-2 text-yellow-500"><GiCrown /></span>存活人口</span>
                         <span className="font-bold">{population.length} (峰值: {stats.peakPopulation})</span>
                     </div>
                     <div className="bg-stone-900/50 p-4 rounded flex justify-between">
-                        <span><GiSkullCrossedBones className="inline mr-2 text-stone-500"/>死亡人数</span>
+                        <span><span className="inline mr-2 text-stone-500"><GiSkullCrossedBones /></span>死亡人数</span>
                         <span className="font-bold">{stats.totalDeaths}</span>
                     </div>
                     <div className="bg-stone-900/50 p-4 rounded flex justify-between">
-                        <span><GiBabyFace className="inline mr-2 text-pink-400"/>新生人口</span>
+                        <span><span className="inline mr-2 text-pink-400"><GiBabyFace /></span>新生人口</span>
                         <span className="font-bold">{stats.totalBirths}</span>
                     </div>
                     <div className="bg-stone-900/50 p-4 rounded flex justify-between">
-                        <span><GiWheat className="inline mr-2 text-orange-400"/>生产食物</span>
+                        <span><span className="inline mr-2 text-orange-400"><GiWheat /></span>生产食物</span>
                         <span className="font-bold">{stats.totalFoodProduced.toLocaleString()}</span>
                     </div>
                     <div className="bg-stone-900/50 p-4 rounded flex justify-between">
-                        <span><GiTrophyCup className="inline mr-2 text-blue-400"/>解锁科技</span>
+                        <span><span className="inline mr-2 text-blue-400"><GiTrophyCup /></span>解锁科技</span>
                         <span className="font-bold">{technologies.length} / {TECH_TREE.length}</span>
                     </div>
                     <div className="bg-stone-900/50 p-4 rounded flex justify-between">
@@ -1151,7 +1151,57 @@ const EndScreen: React.FC<{ state: GameState, onRestart: () => void }> = ({ stat
 
 export default function App() {
   const [state, dispatch] = useReducer(gameReducer, initialState);
-  const [selectedVillager, setSelectedVillager] = useState<Villager | null>(null);
+  const [selectedVillagerId, setSelectedVillagerId] = useState<string | null>(null);
+
+  const selectedVillager = state.population.find(v => v.id === selectedVillagerId) || null;
+
+  // Ref to track if we are currently generating a bio chronicle entry to avoid spamming
+  const generatingBioForRef = React.useRef<string | null>(null);
+
+  // Background Chronicle Generation Effect
+  useEffect(() => {
+    if (state.status !== GameStatus.Playing || state.paused || generatingBioForRef.current) return;
+
+    // Calculate current game year (start at Year 1)
+    const currentYear = Math.floor(state.tick / WEEKS_PER_YEAR) + 1;
+    
+    // Find a villager who needs a bio update for a previous year
+    // We update them if their lastBioYear is less than currentYear
+    const candidate = state.population.find(v => (v.lastBioYear || 0) < currentYear);
+    
+    if (candidate) {
+        // Target year is the next year after their last update
+        const targetYear = (candidate.lastBioYear || 0) + 1;
+        generatingBioForRef.current = candidate.id;
+        
+        // Prepare village status
+        const villageStatus = {
+            isStarving: state.resources.food < state.population.length * CONSUMPTION.food,
+            population: state.population.length
+        };
+
+        console.log(`Generating chronicle for ${candidate.name} (Year ${targetYear})...`);
+
+        updateVillagerChronicle(candidate, targetYear, villageStatus).then(newEntry => {
+            if (newEntry) {
+                // Append new entry to existing bio
+                const oldBio = candidate.bio || "";
+                const newBio = oldBio ? `${oldBio}\n\n${newEntry}` : newEntry;
+                dispatch({ type: 'UPDATE_BIO', id: candidate.id, bio: newBio, year: targetYear });
+            } else {
+                // If failed or empty, update year to avoid stuck loop/spamming
+                console.warn(`Failed to generate bio for ${candidate.name}, skipping year ${targetYear}`);
+                dispatch({ type: 'UPDATE_BIO', id: candidate.id, bio: candidate.bio || "", year: targetYear });
+            }
+        }).catch(err => {
+             console.error("Bio generation error:", err);
+             // Also skip year on error to prevent blocking
+             dispatch({ type: 'UPDATE_BIO', id: candidate.id, bio: candidate.bio || "", year: targetYear });
+        }).finally(() => {
+            generatingBioForRef.current = null;
+        });
+    }
+  }, [state.tick, state.status, state.paused, state.population, state.resources]);
 
   // Clean up old cookies on first mount (one-time cleanup to fix HTTP 431 issue)
   useEffect(() => {
@@ -1335,7 +1385,7 @@ export default function App() {
         <div className="md:col-span-3 h-full min-h-0">
           <VillagerList 
             villagers={state.population} 
-            onSelectVillager={setSelectedVillager} 
+            onSelectVillager={(v) => setSelectedVillagerId(v.id)} 
           />
         </div>
 
@@ -1390,7 +1440,7 @@ export default function App() {
         <VillagerModal 
           villager={selectedVillager} 
           season={state.season}
-          onClose={() => setSelectedVillager(null)}
+          onClose={() => setSelectedVillagerId(null)}
           onUpdateBio={handleUpdateBio}
         />
       )}

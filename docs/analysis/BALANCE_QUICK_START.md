@@ -74,8 +74,8 @@ Result: 12 sustainable pop vs 15 starting = VIABLE ✅
 /utils/balanceCalculator.test.ts # Test suite
 /validateBalance.js              # Standalone validation script
 /balanceCheck.ts                 # Development helper
-/BALANCE_ANALYSIS.md            # Detailed analysis document
-/BALANCE_QUICK_START.md         # This file
+docs/analysis/BALANCE_ANALYSIS.md            # Detailed analysis document
+docs/analysis/BALANCE_QUICK_START.md         # This file
 ```
 
 ## Mathematical Model

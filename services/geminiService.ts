@@ -1,4 +1,4 @@
-import { GameState, Season, GameEvent } from "../types";
+import { GameState, Season, GameEvent, Villager } from "../types";
 import { NAMES_MALE } from "../constants";
 
 // Backend API configuration
@@ -365,6 +365,29 @@ export const generateVillagerBio = async (name: string, age: number, job: string
   } catch (error: any) {
     console.warn('Backend API error, using fallback templates:', error.message);
     return generateBioFallback(name, job);
+  }
+};
+
+// Generate an annual chronicle entry for a villager
+export const updateVillagerChronicle = async (villager: Villager, year: number, villageStatus: { isStarving: boolean; population: number }) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/generate-bio`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ villager, year, villageStatus }),
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      console.log(`AI Chronicle generated for ${villager.name} Year ${year}`);
+      return data.bio;
+    }
+    return null;
+  } catch (error: any) {
+    console.warn('Backend API error for chronicle:', error.message);
+    return null;
   }
 };
 

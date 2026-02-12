@@ -38,6 +38,7 @@ export const generateVillager = (ageOverride?: number): Villager => {
     hunger: Math.floor(Math.random() * 30),
     energy: 50 + Math.floor(Math.random() * 50),
     currentActivity: Activity.Idle,
+    lastBioYear: 0, // Not yet generated
   };
 };
 

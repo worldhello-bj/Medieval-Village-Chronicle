@@ -63,7 +63,7 @@ npm run dev
 http://localhost:3000
 ```
 
-详细说明请查看 [HOW_TO_RUN.md](./HOW_TO_RUN.md)
+详细说明请查看 [HOW_TO_RUN.md](../../../docs/guides/HOW_TO_RUN.md)
 
 ---
 
@@ -130,7 +130,7 @@ npm run dev
 http://localhost:3000
 ```
 
-See [HOW_TO_RUN.md](./HOW_TO_RUN.md) for detailed instructions.
+See [HOW_TO_RUN.md](../../../docs/guides/HOW_TO_RUN.md) for detailed instructions.
 
 ---
 

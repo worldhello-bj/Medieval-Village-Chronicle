@@ -12,7 +12,7 @@ A strategic village management game where you guide your medieval village throug
 
 **不要直接打开 `index.html` 文件！** 游戏必须通过 Web 服务器运行。
 
-📖 **[Read the Complete Running Guide / 阅读完整运行指南 →](./HOW_TO_RUN.md)**
+📖 **[Read the Complete Running Guide / 阅读完整运行指南 →](./docs/guides/HOW_TO_RUN.md)**
 
 ### Quick Start (快速开始)
 
@@ -107,7 +107,7 @@ GEMINI_API_KEY=your_gemini_api_key_here
 
 ## Troubleshooting (故障排除)
 
-See the [complete troubleshooting guide](./HOW_TO_RUN.md#troubleshooting-故障排除) for common issues and solutions.
+See the [complete troubleshooting guide](./docs/guides/HOW_TO_RUN.md#troubleshooting-故障排除) for common issues and solutions.
 
 ### Common Issues:
 - Game won't load → Use a web server, not file://

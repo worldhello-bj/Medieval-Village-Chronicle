@@ -55,7 +55,8 @@ export interface Villager {
   hunger: number; // 0-100 (100 is starving)
   energy: number; // 0-100 (Abstracted daily energy/stamina)
   currentActivity: Activity;
-  bio?: string; // AI Generated
+  bio?: string; // AI Generated Chronicle
+  lastBioYear?: number; // Last year for which a bio entry was generated
 }
 
 export interface Buildings {
